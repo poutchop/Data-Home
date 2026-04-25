@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Data Vault — Carbon Clarity dMRV Platform</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:       #0f1117;
+  --surf:     #1a1d27;
+  --surf2:    #222536;
+  --border:   rgba(255,255,255,0.08);
+  --text:     #e8eaf0;
+  --muted:    #8b8fa8;
+  --green:    #10d97e;
+  --gdim:     rgba(16,217,126,0.12);
+  --amber:    #f4a134;
+  --adim:     rgba(244,161,52,0.12);
+  --blue:     #4d9fff;
+  --bdim:     rgba(77,159,255,0.12);
+  --red:      #ff5a5a;
+  --purple:   #9d7dff;
+  --pdim:     rgba(157,125,255,0.12);
+  --gold:     #f4c430;
+  --r:        10px;
+  --r-sm:     7px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;font-size:13px;min-height:100vh;}
+a{color:inherit;text-decoration:none;}
+button{cursor:pointer;font-family:inherit;}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:3px;}
+
+/* ── Topbar ── */
+.topbar{background:var(--surf);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100;}
+.logo-mark{width:30px;height:30px;border-radius:8px;background:var(--gdim);border:1px solid rgba(16,217,126,0.25);display:flex;align-items:center;justify-content:center;}
+.logo-mark svg{width:14px;height:14px;}
+.logo-name{font-size:14px;font-weight:700;letter-spacing:.5px;color:var(--text);}
+.logo-name span{color:var(--muted);font-weight:400;margin-left:4px;}
+.pilot-badge{background:var(--surf2);border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:11px;color:var(--muted);}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite;}
+.live-label{display:flex;align-items:center;gap:6px;margin-left:auto;font-size:11px;color:var(--green);font-weight:500;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.theme-btn{margin-left:12px;background:var(--surf2);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--muted);}
+.theme-btn:hover{color:var(--text);}
+
+/* ── Tabs ── */
+.tabs{background:var(--surf);border-bottom:1px solid var(--border);padding:0 24px;display:flex;gap:2px;overflow-x:auto;}
+.tab{padding:10px 16px;font-size:12px;font-weight:500;color:var(--muted);border:none;background:none;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap;}
+.tab:hover{color:var(--text);}
+.tab.active{color:var(--green);border-bottom-color:var(--green);}
+
+/* ── Body ── */
+.body{padding:20px 24px;display:flex;flex-direction:column;gap:16px;max-width:1600px;margin:0 auto;}
+
+/* ── Metric cards ── */
+.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;}
+@media(max-width:800px){.metrics{grid-template-columns:repeat(2,1fr);}}
+.metric{background:var(--surf);border:1px solid var(--border);border-radius:var(--r);padding:16px;}
+.metric-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;}
+.metric-value{font-size:26px;font-weight:700;line-height:1;}
+.metric-sub{font-size:11px;color:var(--muted);margin-top:6px;}
+
+/* ── Cards ── */
+.card{background:var(--surf);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;}
+.card-head{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;font-size:12px;font-weight:500;}
+.card-head .muted{color:var(--muted);font-size:10px;margin-left:auto;}
+.card-body{padding:16px;}
+
+/* ── Two-col layout ── */
+.two-col{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,380px);gap:14px;}
+@media(max-width:900px){.two-col{grid-template-columns:1fr;}}
+.three-col{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;}
+@media(max-width:900px){.three-col{grid-template-columns:1fr;}}
+
+/* ── Badges ── */
+.badge{display:inline-flex;align-items:center;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;letter-spacing:.3px;}
+.b-green{background:var(--gdim);color:var(--green);}
+.b-amber{background:var(--adim);color:var(--amber);}
+.b-red{background:rgba(255,90,90,.12);color:var(--red);}
+.b-blue{background:var(--bdim);color:var(--blue);}
+.b-purple{background:var(--pdim);color:var(--purple);}
+
+/* ── Feed ── */
+.feed-item{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.04);}
+.feed-item:last-child{border-bottom:none;}
+.feed-dot{width:7px;height:7px;border-radius:50%;margin-top:4px;flex-shrink:0;}
+.fd-green{background:var(--green);}
+.fd-amber{background:var(--amber);}
+.fd-red{background:var(--red);}
+.feed-name{font-size:12px;font-weight:500;}
+.feed-meta{font-size:11px;color:var(--muted);margin-top:2px;}
+.feed-time{font-size:10px;color:var(--muted);white-space:nowrap;margin-left:auto;flex-shrink:0;}
+.feed-factors{display:flex;gap:3px;margin-top:4px;}
+.ff{width:6px;height:6px;border-radius:50%;}
+
+/* ── Verify panel ── */
+.factor-row{background:var(--surf2);border-radius:8px;padding:10px 12px;border:1px solid var(--border);margin-bottom:8px;}
+.factor-row.ok{border-color:rgba(16,217,126,.3);}
+.factor-row.fail{border-color:rgba(255,90,90,.3);}
+.factor-label{font-size:9px;font-weight:700;letter-spacing:1.5px;color:var(--muted);margin-bottom:4px;}
+.factor-val{font-size:12px;font-weight:600;}
+.factor-sub{font-size:10px;color:var(--muted);margin-top:2px;}
+.verdict{border-radius:8px;padding:10px 12px;margin-top:4px;}
+.verdict.ok{background:var(--gdim);border:1px solid rgba(16,217,126,.2);}
+.verdict.fail{background:var(--adim);border:1px solid rgba(244,161,52,.2);}
+.run-btn{width:100%;background:var(--gdim);border:1px solid rgba(16,217,126,.35);border-radius:8px;padding:9px;font-size:12px;font-weight:600;color:var(--green);margin-top:8px;transition:background .15s;}
+.run-btn:hover{background:rgba(16,217,126,.2);}
+.gps-check{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);margin-bottom:8px;}
+.gps-check input{accent-color:var(--green);}
+
+/* ── Chart containers ── */
+.chart-wrap{position:relative;height:180px;}
+
+/* ── Table ── */
+.tbl{width:100%;border-collapse:collapse;font-size:12px;}
+.tbl th{text-align:left;padding:8px 12px;color:var(--muted);font-weight:500;border-bottom:1px solid var(--border);}
+.tbl td{padding:9px 12px;border-bottom:1px solid rgba(255,255,255,.03);}
+.tbl tr:last-child td{border-bottom:none;}
+.tbl tr:hover td{background:rgba(255,255,255,.015);}
+
+/* ── Leaderboard ── */
+.lb-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.04);}
+.lb-row:last-child{border-bottom:none;}
+.lb-rank{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;}
+.lb-name{flex:1;min-width:0;}
+.lb-name .n{font-size:12px;font-weight:500;}
+.lb-name .s{font-size:10px;color:var(--muted);}
+.lb-bar-track{height:3px;background:var(--surf2);border-radius:2px;margin-top:4px;overflow:hidden;}
+.lb-bar-fill{height:100%;background:var(--green);border-radius:2px;}
+.lb-pts{font-size:14px;font-weight:700;color:var(--green);}
+
+/* ── Provost ── */
+.export-btn{background:var(--gdim);border:1px solid rgba(16,217,126,.3);border-radius:8px;padding:6px 14px;font-size:12px;font-weight:600;color:var(--green);}
+.export-btn:hover{background:rgba(16,217,126,.2);}
+.code-block{background:var(--surf2);border-radius:8px;padding:14px 16px;font-family:'JetBrains Mono','Fira Code',monospace;font-size:11px;line-height:1.7;color:var(--text);overflow-x:auto;border:1px solid var(--border);}
+.code-block .kw{color:var(--blue);}
+.code-block .str{color:var(--green);}
+.code-block .cm{color:var(--muted);}
+
+/* ── Points key ── */
+.pts-row{display:flex;justify-content:space-between;align-items:center;background:var(--surf2);border-radius:8px;padding:9px 12px;margin-bottom:6px;font-size:12px;}
+
+/* ── Date inputs ── */
+input[type=date]{background:var(--surf2);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--text);outline:none;}
+input[type=date]:focus{border-color:var(--green);}
+
+/* ── Footer ── */
+.footer{padding:20px 24px;text-align:center;font-size:11px;color:var(--muted);border-top:1px solid var(--border);}
+
+/* ── Light mode ── */
+body.light{--bg:#f4f6fa;--surf:#fff;--surf2:#eef1f8;--border:rgba(0,0,0,.08);--text:#111827;--muted:#6b7280;--gdim:rgba(16,140,80,.09);--adim:rgba(180,100,10,.09);--bdim:rgba(37,99,235,.09);--pdim:rgba(100,80,200,.09);}
+</style>
+</head>
+<body>
+
+<!-- ══ TOPBAR ══════════════════════════════════════════════════ -->
+<div class="topbar">
+  <div class="logo-mark">
+    <svg viewBox="0 0 14 14" fill="none">
+      <path d="M7 1L12 10H7H2L7 1Z" fill="#10d97e" opacity=".7"/>
+      <path d="M7 1L12 10H7V1Z" fill="#10d97e"/>
+      <circle cx="7" cy="6" r="2" fill="#fff"/>
+    </svg>
+  </div>
+  <div class="logo-name">DATA VAULT <span>by Carbon Clarity</span></div>
+  <div class="pilot-badge">Berekuso Pilot · Week 4</div>
+  <div class="live-label">
+    <div class="live-dot"></div>
+    Live hardening feed
+  </div>
+  <button class="theme-btn" onclick="toggleTheme()">☀ / ☾</button>
+</div>
+
+<!-- ══ TABS ════════════════════════════════════════════════════ -->
+<div class="tabs">
+  <button class="tab active" onclick="setTab('feed',this)">Hardening feed</button>
+  <button class="tab" onclick="setTab('analytics',this)">Climate analytics</button>
+  <button class="tab" onclick="setTab('leaderboard',this)">Leaderboard</button>
+  <button class="tab" onclick="setTab('provost',this)">Provost portal</button>
+</div>
+
+<!-- ══ BODY ════════════════════════════════════════════════════ -->
+<div class="body">
+
+  <!-- Metric cards — always visible -->
+  <div class="metrics">
+    <div class="metric">
+      <div class="metric-label">Scans today
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="#10d97e" stroke-width="1.2"/><path d="M6 4v3M6 8.5v.5" stroke="#10d97e" stroke-width="1.2" stroke-linecap="round"/></svg>
+      </div>
+      <div class="metric-value" style="color:var(--green)" id="m-scans">47</div>
+      <div class="metric-sub" id="m-scans-sub">+12 since 9 am · 3 flagged</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Verification rate</div>
+      <div class="metric-value" style="color:var(--blue)">94%</div>
+      <div class="metric-sub">Triple-factor pass rate</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">CO₂ avoided (kg)</div>
+      <div class="metric-value" style="color:var(--amber)">2,841</div>
+      <div class="metric-sub">18 active participants</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Payouts sent</div>
+      <div class="metric-value" style="color:var(--purple)">GHS 1,240</div>
+      <div class="metric-sub">MTN &amp; Telecel MoMo</div>
+    </div>
+  </div>
+
+  <!-- ── PANEL: Feed ── -->
+  <div id="panel-feed">
+    <div class="two-col">
+
+      <!-- Live feed -->
+      <div class="card">
+        <div class="card-head">
+          <div class="live-dot"></div>
+          Real-time hardening feed
+          <span class="muted">Auto-refreshes · QR · GPS · Time</span>
+        </div>
+        <div style="padding:0 16px;max-height:420px;overflow-y:auto;" id="feed-list"></div>
+        <div style="padding:8px 16px;border-top:1px solid var(--border);font-size:10px;color:var(--muted);">
+          Showing latest 40 scans · new entries appear automatically
+        </div>
+      </div>
+
+      <!-- Verifier -->
+      <div class="card">
+        <div class="card-head">Triple-factor verifier</div>
+        <div class="card-body">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">
+            Live verification engine — run a test scan to see all three factors.
+          </div>
+
+          <div class="factor-row ok" id="vf1">
+            <div class="factor-label">FACTOR 1 · QR HMAC</div>
+            <div class="factor-val" style="color:var(--green)">✓ Signature matched</div>
+            <div class="factor-sub">board_014 → participant_032 · HMAC-SHA256</div>
+          </div>
+          <div class="factor-row ok" id="vf2">
+            <div class="factor-label">FACTOR 2 · GPS GEOFENCE</div>
+            <div class="factor-val" style="color:var(--green)" id="vf2-val">✓ 84 m from centroid</div>
+            <div class="factor-sub">5.7456°N 0.3214°W · within 200 m fence</div>
+          </div>
+          <div class="factor-row ok" id="vf3">
+            <div class="factor-label">FACTOR 3 · TIMESTAMP</div>
+            <div class="factor-val" style="color:var(--green)">✓ Δt = 4 s</div>
+            <div class="factor-sub">NTP-synced · within ±90 min window</div>
+          </div>
+
+          <div class="verdict ok" id="verdict">
+            <div style="font-size:12px;font-weight:700;color:var(--green);">HARDENED — Payout queued</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:3px;">scan_id: scn_8af4b · GHS 0.25 → MTN ****7731</div>
+          </div>
+
+          <label class="gps-check" style="margin-top:12px;">
+            <input type="checkbox" id="gps-fail-cb" onchange="updateVerifier()"/>
+            Simulate GPS failure (outside geofence)
+          </label>
+          <button class="run-btn" onclick="runVerifier()">Run verification →</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── PANEL: Analytics ── -->
+  <div id="panel-analytics" style="display:none;">
+    <div class="three-col" style="margin-bottom:14px;">
+      <div class="card" style="grid-column:span 2">
+        <div class="card-head">
+          <span style="width:8px;height:8px;border-radius:2px;background:var(--green);display:inline-block;"></span>
+          Firewood avoidance — CO₂ saved (kg/week)
+        </div>
+        <div class="card-body"><div class="chart-wrap"><canvas id="co2Chart"></canvas></div></div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <span style="width:8px;height:8px;border-radius:2px;background:var(--amber);display:inline-block;"></span>
+          Wood bundles saved
+        </div>
+        <div class="card-body">
+          <div class="chart-wrap"><canvas id="bundleChart"></canvas></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;">
+            <div style="background:var(--surf2);border-radius:8px;padding:10px;text-align:center;">
+              <div style="font-size:10px;color:var(--muted);">Total bundles</div>
+              <div style="font-size:18px;font-weight:700;color:var(--amber);">172</div>
+            </div>
+            <div style="background:var(--surf2);border-radius:8px;padding:10px;text-align:center;">
+              <div style="font-size:10px;color:var(--muted);">Week growth</div>
+              <div style="font-size:18px;font-weight:700;color:var(--green);">+16.7%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head">Site-level impact summary</div>
+      <div style="overflow-x:auto;">
+        <table class="tbl">
+          <thead><tr><th>Site</th><th>Participants</th><th>Scans (wk)</th><th>CO₂ saved</th><th>Avg nutrition</th><th>Payout status</th></tr></thead>
+          <tbody>
+            <tr><td style="font-weight:500;">Berekuso Farm A</td><td>7</td><td>49</td><td style="color:var(--green);font-weight:600;">842 kg</td><td style="color:var(--blue);">76.4</td><td><span class="badge b-green">Paid</span></td></tr>
+            <tr><td style="font-weight:500;">Berekuso Farm B</td><td>6</td><td>38</td><td style="color:var(--green);font-weight:600;">684 kg</td><td style="color:var(--blue);">71.8</td><td><span class="badge b-green">Paid</span></td></tr>
+            <tr><td style="font-weight:500;">Tomato Co-op West</td><td>5</td><td>31</td><td style="color:var(--amber);font-weight:600;">510 kg</td><td style="color:var(--blue);">73.2</td><td><span class="badge b-amber">Pending</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PANEL: Leaderboard ── -->
+  <div id="panel-leaderboard" style="display:none;">
+    <div class="two-col">
+      <div class="card">
+        <div class="card-head">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1L8 5H12L9 7.5L10 11.5L6.5 9L3 11.5L4 7.5L1 5H5L6.5 1Z" fill="#f4c430"/></svg>
+          Community champion leaderboard — Week 4
+          <span class="muted">Auto-refreshes every 30 s</span>
+        </div>
+        <div style="padding:0 16px;" id="lb-list"></div>
+        <div style="padding:12px 16px;border-top:1px solid var(--border);background:rgba(16,217,126,.06);">
+          <div style="font-size:11px;font-weight:600;color:var(--green);">Next group payout — Friday 18 Apr</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">6 participants eligible · GHS 30.00 total · MTN &amp; Telecel</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div class="card">
+          <div class="card-head">Points key</div>
+          <div class="card-body" style="padding-bottom:8px;">
+            <div class="pts-row"><span>Firewood avoidance scan</span><span style="color:var(--green);font-weight:700;">+3 pts</span></div>
+            <div class="pts-row"><span>Nutrition meal logged</span><span style="color:var(--blue);font-weight:700;">+2 pts</span></div>
+            <div class="pts-row"><span>Solar drying logged</span><span style="color:var(--amber);font-weight:700;">+2 pts</span></div>
+            <div class="pts-row" style="margin-bottom:0;"><span>Full week completed</span><span style="color:var(--purple);font-weight:700;">+10 bonus</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head">Payout threshold</div>
+          <div class="card-body">
+            <div style="background:var(--surf2);border-radius:8px;padding:12px;">
+              <div style="font-size:22px;font-weight:700;color:var(--green);">100 pts</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:4px;">= GHS 5.00 Mobile Money payout</div>
+            </div>
+            <div style="margin-top:10px;font-size:11px;color:var(--muted);">Paid automatically via MTN MoMo API once threshold is reached and all scans are hardened.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PANEL: Provost ── -->
+  <div id="panel-provost" style="display:none;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+      <span style="font-size:13px;font-weight:600;">Provost Research Hub</span>
+      <span class="badge b-blue">Academic access</span>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span style="font-size:11px;color:var(--muted);">Filter:</span>
+        <input type="date" id="date-from" value="2026-04-01"/>
+        <span style="color:var(--muted);">to</span>
+        <input type="date" id="date-to" value="2026-04-15"/>
+        <button class="export-btn" onclick="exportCsv()">⬇ Export CSV</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px;">
+      <div class="card-head">REST API endpoint — academic export</div>
+      <div class="card-body">
+        <div class="code-block">
+<span class="kw">GET</span> /api/v1/nutrition<br>
+&nbsp;&nbsp;?site=<span class="str">berekuso-farm-a</span><br>
+&nbsp;&nbsp;&amp;from=<span class="str">2026-04-01</span><br>
+&nbsp;&nbsp;&amp;to=<span class="str">2026-04-15</span><br>
+&nbsp;&nbsp;&amp;format=<span class="str">csv</span> <span class="cm">/* or json */</span><br>
+&nbsp;&nbsp;Authorization: Bearer &lt;provost-api-key&gt;<br><br>
+<span class="str">Response 200</span> → { scans[], nutrition_scores[], aggregate{} }
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px;">
+      <div class="card-head">
+        Nutrition score trend (weekly avg)
+        <span class="muted">Target: 80</span>
+      </div>
+      <div class="card-body"><div class="chart-wrap"><canvas id="nutritionChart"></canvas></div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        Food &amp; nutrition log
+        <span class="muted">5 records shown</span>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="tbl" id="nutrition-table">
+          <thead><tr><th>Date</th><th>Participant</th><th>Site</th><th>Meal</th><th>Protein (g)</th><th>Kcal</th><th>Score</th><th>Verified</th></tr></thead>
+          <tbody id="nutrition-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /body -->
+
+<div class="footer">
+  Carbon Clarity Data Vault · dMRV Platform · Ashesi University Pilot · v1.0.0-mvp<br>
+  <span style="color:rgba(255,255,255,.25);">Built by Pout Chop Jal Madeng · Mastercard Foundation Scholar</span>
+</div>
+
+<script>
+// ══ DATA ══════════════════════════════════════════════════════════
+var feedData = [
+  {name:'Akosua Mensah', board:'014', site:'Farm A', action:'firewood_avoidance', status:'hardened', time:'09:42'},
+  {name:'Abena Owusu',   board:'007', site:'Farm B', action:'nutrition_meal',    status:'hardened', time:'09:38'},
+  {name:'Efua Darko',    board:'021', site:'Co-op W',action:'firewood_avoidance', status:'flagged',  time:'09:31'},
+  {name:'Ama Asante',    board:'003', site:'Farm A', action:'firewood_avoidance', status:'hardened', time:'09:27'},
+  {name:'Adwoa Boateng', board:'019', site:'Farm B', action:'nutrition_meal',    status:'hardened', time:'09:19'},
+  {name:'Yaa Frimpong',  board:'011', site:'Co-op W',action:'firewood_avoidance', status:'rejected', time:'09:15'},
+  {name:'Akua Nkrumah',  board:'006', site:'Farm A', action:'nutrition_meal',    status:'hardened', time:'09:08'},
+  {name:'Serwa Adjei',   board:'002', site:'Farm A', action:'solar_drying',      status:'hardened', time:'09:01'},
+  {name:'Araba Quaye',   board:'017', site:'Farm B', action:'nutrition_meal',    status:'hardened', time:'08:55'},
+  {name:'Akosua Mensah', board:'014', site:'Farm A', action:'firewood_avoidance', status:'hardened', time:'08:48'},
+];
+
+var lbData = [
+  {name:'Akosua Mensah', site:'Farm A', pts:142, pct:100, pay:'11.83', rank:1},
+  {name:'Ama Asante',    site:'Farm A', pts:138, pct:97,  pay:'11.50', rank:2},
+  {name:'Abena Owusu',   site:'Farm B', pts:131, pct:92,  pay:'10.92', rank:3},
+  {name:'Adwoa Boateng', site:'Farm B', pts:119, pct:84,  pay:'9.92',  rank:4},
+  {name:'Akua Nkrumah',  site:'Farm A', pts:107, pct:75,  pay:'8.92',  rank:5},
+  {name:'Yaa Frimpong',  site:'Co-op W',pts:98,  pct:69,  pay:'8.17',  rank:6},
+];
+
+var nutritionRows = [
+  {date:'2026-04-15',name:'Akosua Mensah',site:'Farm A',meal:'Bean stew with greens',protein:28,kcal:480,score:82,verified:true},
+  {date:'2026-04-15',name:'Abena Owusu',  site:'Farm B',meal:'Kontomire with yam',   protein:22,kcal:410,score:74,verified:true},
+  {date:'2026-04-14',name:'Akosua Mensah',site:'Farm A',meal:'Groundnut soup + rice', protein:31,kcal:520,score:86,verified:true},
+  {date:'2026-04-14',name:'Ama Asante',   site:'Farm A',meal:'Egg with tomato sauce', protein:18,kcal:360,score:68,verified:false},
+  {date:'2026-04-13',name:'Abena Owusu',  site:'Farm B',meal:'Bean stew',             protein:25,kcal:440,score:78,verified:true},
+];
+
+// ══ RENDER FEED ════════════════════════════════════════════════════
+function renderFeed(){
+  var el = document.getElementById('feed-list');
+  if(!el) return;
+  el.innerHTML = feedData.slice(0,12).map(function(f){
+    var dotCls = f.status==='hardened'?'fd-green':f.status==='flagged'?'fd-amber':'fd-red';
+    var badgeCls = f.status==='hardened'?'b-green':f.status==='flagged'?'b-amber':'b-red';
+    var action = f.action.replace(/_/g,' ');
+    return '<div class="feed-item">'
+      +'<div class="feed-dot '+dotCls+'"></div>'
+      +'<div style="flex:1;min-width:0;">'
+        +'<div class="feed-name">'+f.name+' <span style="color:var(--muted);font-weight:400;font-size:11px;">#'+f.board+'</span>'
+          +' <span class="badge '+badgeCls+'">'+f.status+'</span>'
+          +' <span class="badge b-blue">'+action+'</span>'
+        +'</div>'
+        +'<div class="feed-meta">'+f.site+' · GPS: 5.7456°N 0.3214°W · Δt 4s</div>'
+        +'<div class="feed-factors">'
+          +'<div class="ff" style="background:'+(f.status!=='rejected'?'var(--green)':'var(--red)')+';" title="QR"></div>'
+          +'<div class="ff" style="background:'+(f.status==='hardened'?'var(--green)':f.status==='flagged'?'var(--amber)':'var(--red)')+';" title="GPS"></div>'
+          +'<div class="ff" style="background:var(--green);" title="Time"></div>'
+        +'</div>'
+      +'</div>'
+      +'<div class="feed-time">'+f.time+'</div>'
+    +'</div>';
+  }).join('');
+}
+
+// ══ RENDER LEADERBOARD ══════════════════════════════════════════
+function renderLeaderboard(){
+  var el = document.getElementById('lb-list');
+  if(!el) return;
+  var medals = ['#f4c430','#c0c0c0','#cd7f32'];
+  el.innerHTML = lbData.map(function(p){
+    var mc = medals[p.rank-1]||'var(--muted)';
+    var textC = p.rank<=3?'#111':'var(--muted)';
+    return '<div class="lb-row">'
+      +'<div class="lb-rank" style="background:'+mc+';color:'+textC+'">'+p.rank+'</div>'
+      +'<div class="lb-name">'
+        +'<div class="n">'+p.name+'</div>'
+        +'<div class="s">'+p.site+'</div>'
+        +'<div class="lb-bar-track"><div class="lb-bar-fill" style="width:'+p.pct+'%"></div></div>'
+      +'</div>'
+      +'<div style="text-align:right;">'
+        +'<div class="lb-pts">'+p.pts+'</div>'
+        +'<div style="font-size:10px;color:var(--muted);">pts</div>'
+      +'</div>'
+      +'<div style="text-align:right;display:none;" class="lb-pay">'
+        +'<div style="font-size:12px;font-weight:600;color:var(--purple);">GHS '+p.pay+'</div>'
+      +'</div>'
+    +'</div>';
+  }).join('');
+}
+
+// ══ RENDER NUTRITION TABLE ════════════════════════════════════════
+function renderNutrition(){
+  var tbody = document.getElementById('nutrition-body');
+  if(!tbody) return;
+  tbody.innerHTML = nutritionRows.map(function(r){
+    var sc = r.score>=80?'var(--green)':r.score>=70?'var(--blue)':'var(--amber)';
+    return '<tr>'
+      +'<td style="color:var(--muted)">'+r.date+'</td>'
+      +'<td style="font-weight:500">'+r.name+'</td>'
+      +'<td>'+r.site+'</td>'
+      +'<td>'+r.meal+'</td>'
+      +'<td>'+r.protein+'</td>'
+      +'<td>'+r.kcal+'</td>'
+      +'<td style="color:'+sc+';font-weight:700">'+r.score+'</td>'
+      +'<td><span class="badge '+(r.verified?'b-green':'b-amber')+'">'+(r.verified?'Verified':'Pending')+'</span></td>'
+    +'</tr>';
+  }).join('');
+}
+
+// ══ CHARTS ════════════════════════════════════════════════════════
+var chartDefaults = {
+  responsive:true, maintainAspectRatio:false,
+  plugins:{legend:{labels:{color:'#8b8fa8',font:{size:11},boxWidth:10}}},
+};
+function gridOpts(){
+  return {color:'rgba(255,255,255,0.04)',drawBorder:false};
+}
+function tickOpts(){
+  return {color:'#8b8fa8',font:{size:10}};
+}
+
+var co2Chart, bundleChart, nutritionChart;
+
+function initCharts(){
+  var weeks = ['W1','W2','W3','W4','W5','W6','W7'];
+
+  if(!co2Chart){
+    co2Chart = new Chart(document.getElementById('co2Chart'),{
+      type:'bar',
+      data:{
+        labels:weeks,
+        datasets:[
+          {label:'CO₂ avoided (kg)',data:[210,285,320,410,388,447,520],backgroundColor:'rgba(16,217,126,0.75)',borderRadius:4},
+          {label:'Baseline',data:[180,180,180,180,180,180,180],backgroundColor:'rgba(244,161,52,0.4)',borderRadius:4},
+        ]
+      },
+      options:{...chartDefaults,scales:{x:{grid:gridOpts(),ticks:tickOpts()},y:{grid:gridOpts(),ticks:tickOpts()}}},
+    });
+  }
+
+  if(!bundleChart){
+    bundleChart = new Chart(document.getElementById('bundleChart'),{
+      type:'line',
+      data:{
+        labels:weeks,
+        datasets:[{
+          label:'Bundles saved',data:[14,19,21,27,26,30,35],
+          borderColor:'#f4a134',backgroundColor:'rgba(244,161,52,0.1)',
+          borderWidth:2,pointRadius:3,fill:true,tension:.35,
+        }]
+      },
+      options:{...chartDefaults,scales:{x:{grid:gridOpts(),ticks:tickOpts()},y:{grid:gridOpts(),ticks:tickOpts()}}},
+    });
+  }
+
+  if(!nutritionChart){
+    nutritionChart = new Chart(document.getElementById('nutritionChart'),{
+      type:'line',
+      data:{
+        labels:weeks,
+        datasets:[
+          {label:'Nutrition score',data:[62,65,70,71,74,76,78],borderColor:'#4d9fff',backgroundColor:'rgba(77,159,255,0.1)',borderWidth:2,pointRadius:3,fill:true,tension:.35},
+          {label:'Target (80)',data:[80,80,80,80,80,80,80],borderColor:'#9d7dff',borderWidth:1.5,borderDash:[4,4],pointRadius:0,fill:false},
+        ]
+      },
+      options:{...chartDefaults,scales:{x:{grid:gridOpts(),ticks:tickOpts()},y:{grid:gridOpts(),ticks:tickOpts(),min:40,max:100}}},
+    });
+  }
+}
+
+// ══ VERIFIER ════════════════════════════════════════════════════
+function updateVerifier(){
+  var gpsFail = document.getElementById('gps-fail-cb').checked;
+  var vf2 = document.getElementById('vf2');
+  var vf2val = document.getElementById('vf2-val');
+  var verdict = document.getElementById('verdict');
+  if(gpsFail){
+    vf2.className='factor-row fail';
+    vf2val.style.color='var(--red)';
+    vf2val.textContent='✗ 4,823 m — outside 200 m fence';
+    verdict.className='verdict fail';
+    verdict.innerHTML='<div style="font-size:12px;font-weight:700;color:var(--amber);">FLAGGED — Payout blocked</div><div style="font-size:10px;color:var(--muted);margin-top:3px;">GPS outside geofence · flagged for Queen Mother review</div>';
+  } else {
+    vf2.className='factor-row ok';
+    vf2val.style.color='var(--green)';
+    vf2val.textContent='✓ 84 m from centroid';
+    verdict.className='verdict ok';
+    verdict.innerHTML='<div style="font-size:12px;font-weight:700;color:var(--green);">HARDENED — Payout queued</div><div style="font-size:10px;color:var(--muted);margin-top:3px;">scan_id: scn_8af4b · GHS 0.25 → MTN ****7731</div>';
+  }
+}
+
+function runVerifier(){
+  var btn = document.querySelector('.run-btn');
+  btn.textContent='Verifying…';
+  btn.disabled=true;
+  setTimeout(function(){
+    updateVerifier();
+    btn.textContent='Run verification →';
+    btn.disabled=false;
+  },900);
+}
+
+// ══ CSV EXPORT ════════════════════════════════════════════════════
+function exportCsv(){
+  var headers=['date','participant','site','meal','protein_g','kcal','nutrition_score','researcher_verified'];
+  var rows = nutritionRows.map(function(r){
+    return [r.date,r.name,r.site,'"'+r.meal+'"',r.protein,r.kcal,r.score,r.verified].join(',');
+  });
+  var csv = [headers.join(',')].concat(rows).join('\n');
+  var blob = new Blob([csv],{type:'text/csv'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'carbon_clarity_nutrition.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ══ TABS ══════════════════════════════════════════════════════════
+var panels = ['feed','analytics','leaderboard','provost'];
+function setTab(id, el){
+  panels.forEach(function(p){
+    document.getElementById('panel-'+p).style.display = p===id?'':'none';
+  });
+  document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+  el.classList.add('active');
+  if(id==='analytics' || id==='provost') setTimeout(initCharts,50);
+}
+
+// ══ THEME ════════════════════════════════════════════════════════
+function toggleTheme(){
+  document.body.classList.toggle('light');
+}
+
+// ══ LIVE FEED SIMULATION ═════════════════════════════════════════
+var extraNames = ['Efua Darko','Serwa Adjei','Araba Quaye','Adwoa Mensah','Aba Koomson'];
+var extraActions = ['firewood_avoidance','nutrition_meal','solar_drying'];
+var scanCount = 47;
+
+function addNewScan(){
+  var now = new Date();
+  var hh = String(now.getHours()).padStart(2,'0');
+  var mm = String(now.getMinutes()).padStart(2,'0');
+  var newScan = {
+    name: extraNames[Math.floor(Math.random()*extraNames.length)],
+    board: String(Math.floor(Math.random()*30)+1).padStart(3,'0'),
+    site: ['Farm A','Farm B','Co-op W'][Math.floor(Math.random()*3)],
+    action: extraActions[Math.floor(Math.random()*extraActions.length)],
+    status: Math.random()>0.12?'hardened':'flagged',
+    time: hh+':'+mm,
+  };
+  feedData.unshift(newScan);
+  scanCount++;
+  document.getElementById('m-scans').textContent=scanCount;
+  if(document.getElementById('panel-feed').style.display!=='none') renderFeed();
+}
+
+// ══ INIT ═════════════════════════════════════════════════════════
+renderFeed();
+renderLeaderboard();
+renderNutrition();
+setInterval(addNewScan, 6000);
+</script>
+</body>
+</html>
