@@ -458,8 +458,117 @@ async function exportExcel() {
   showToast('✅ Excel report downloaded — 4 sheets');
 }
 
+// ══ MAP VIEW — Leaflet with geofences ════════════════════════════
+var scanMap = null;
+var mapMarkers = [];
+
+// Site locations (Berekuso area)
+var SITES = {
+  'Farm A': { lat: 5.7456, lng: -0.3214, color: '#10d97e', label: 'Berekuso Farm A' },
+  'Farm B': { lat: 5.7480, lng: -0.3180, color: '#4d9fff', label: 'Berekuso Farm B' },
+  'Co-op W':{ lat: 5.7430, lng: -0.3250, color: '#f4a134', label: 'Taanso Co-op W' }
+};
+var GEOFENCE_RADIUS = 200; // meters
+
+function initMap() {
+  var mapEl = document.getElementById('scan-map');
+  if (!mapEl) return;
+
+  if (scanMap) {
+    scanMap.invalidateSize();
+    return;
+  }
+
+  scanMap = L.map('scan-map', {
+    center: [5.7456, -0.3214],
+    zoom: 15,
+    zoomControl: true
+  });
+
+  // Dark tile layer
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap © CARTO',
+    maxZoom: 19
+  }).addTo(scanMap);
+
+  // Add geofence circles and site markers
+  Object.keys(SITES).forEach(function(key) {
+    var s = SITES[key];
+
+    // 200m geofence circle
+    L.circle([s.lat, s.lng], {
+      radius: GEOFENCE_RADIUS,
+      color: s.color,
+      fillColor: s.color,
+      fillOpacity: 0.08,
+      weight: 1.5,
+      dashArray: '6 4'
+    }).addTo(scanMap);
+
+    // Site center marker
+    L.circleMarker([s.lat, s.lng], {
+      radius: 8,
+      color: s.color,
+      fillColor: s.color,
+      fillOpacity: 0.9,
+      weight: 2
+    }).bindPopup('<b>' + s.label + '</b><br>200m geofence').addTo(scanMap);
+  });
+
+  // Plot scan locations
+  plotScans();
+}
+
+function plotScans() {
+  if (!scanMap) return;
+
+  // Clear old markers
+  mapMarkers.forEach(function(m) { scanMap.removeLayer(m); });
+  mapMarkers = [];
+
+  // Count by site
+  var counts = { 'Farm A': 0, 'Farm B': 0, 'Co-op W': 0 };
+
+  feedData.forEach(function(scan, i) {
+    var site = SITES[scan.site] || SITES['Farm A'];
+    // Scatter scans around the site center (simulate real positions)
+    var jitterLat = (Math.random() - 0.5) * 0.003;
+    var jitterLng = (Math.random() - 0.5) * 0.003;
+    var lat = site.lat + jitterLat;
+    var lng = site.lng + jitterLng;
+
+    var isHardened = scan.status === 'hardened';
+    var markerColor = isHardened ? '#10d97e' : scan.status === 'flagged' ? '#f4a134' : '#ff5a5a';
+
+    var marker = L.circleMarker([lat, lng], {
+      radius: 5,
+      color: markerColor,
+      fillColor: markerColor,
+      fillOpacity: 0.7,
+      weight: 1
+    }).bindPopup(
+      '<b>' + scan.name + '</b> #' + scan.board + '<br>' +
+      '<span style="color:' + markerColor + ';">' + scan.status + '</span> · ' +
+      (scan.action || '').replace(/_/g, ' ') + '<br>' +
+      scan.site + ' · ' + (scan.time || '')
+    );
+    marker.addTo(scanMap);
+    mapMarkers.push(marker);
+
+    if (counts[scan.site] !== undefined) counts[scan.site]++;
+  });
+
+  // Update counters
+  var fa = document.getElementById('map-farm-a');
+  var fb = document.getElementById('map-farm-b');
+  var cw = document.getElementById('map-coop-w');
+  if (fa) fa.textContent = counts['Farm A'];
+  if (fb) fb.textContent = counts['Farm B'];
+  if (cw) cw.textContent = counts['Co-op W'];
+}
+
 // ══ TABS ═════════════════════════════════════════════════════════
-var panels = ['feed', 'analytics', 'leaderboard', 'provost', 'scanner'];
+var panels = ['feed', 'analytics', 'leaderboard', 'map', 'provost', 'scanner'];
 function setTab(id, el) {
   panels.forEach(function(p) {
     var panel = document.getElementById('panel-' + p);
@@ -468,6 +577,7 @@ function setTab(id, el) {
   document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
   el.classList.add('active');
   if (id === 'analytics' || id === 'provost') setTimeout(initCharts, 80);
+  if (id === 'map') setTimeout(initMap, 100);
 }
 
 // ══ THEME ════════════════════════════════════════════════════════

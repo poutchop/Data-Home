@@ -12,6 +12,8 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
@@ -57,6 +59,7 @@
   <button class="tab active" onclick="setTab('feed',this)">Hardening feed</button>
   <button class="tab" onclick="setTab('analytics',this)">Climate analytics</button>
   <button class="tab" onclick="setTab('leaderboard',this)">Leaderboard</button>
+  <button class="tab" onclick="setTab('map',this)">🗺️ Map</button>
   <button class="tab" onclick="setTab('provost',this)" data-tab="provost" style="display:none;">Provost portal</button>
   <button class="tab" onclick="setTab('scanner',this)" data-tab="scanner" style="display:none;">📷 Scanner</button>
 </div>
@@ -297,6 +300,43 @@
           <thead><tr><th>Date</th><th>Participant</th><th>Site</th><th>Meal</th><th>Protein (g)</th><th>Kcal</th><th>Score</th><th>Verified</th></tr></thead>
           <tbody id="nutrition-body"></tbody>
         </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PANEL: Map ── -->
+  <div id="panel-map" style="display:none;">
+    <div class="card" style="margin-bottom:14px;">
+      <div class="card-head">
+        <span style="font-size:16px;">🗺️</span>
+        Berekuso Scan Map — GPS Geofence View
+        <span class="muted">Live scan locations</span>
+      </div>
+      <div class="card-body" style="padding:0;">
+        <div id="scan-map" style="height:450px;border-radius:0 0 14px 14px;z-index:1;"></div>
+      </div>
+    </div>
+    <div class="three-col">
+      <div class="card">
+        <div class="card-body" style="text-align:center;">
+          <div style="font-size:10px;text-transform:uppercase;color:var(--muted);letter-spacing:1px;">Farm A Scans</div>
+          <div style="font-size:28px;font-weight:800;color:var(--green);" id="map-farm-a">0</div>
+          <div style="font-size:10px;color:var(--muted);">Within geofence</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-body" style="text-align:center;">
+          <div style="font-size:10px;text-transform:uppercase;color:var(--muted);letter-spacing:1px;">Farm B Scans</div>
+          <div style="font-size:28px;font-weight:800;color:var(--blue);" id="map-farm-b">0</div>
+          <div style="font-size:10px;color:var(--muted);">Within geofence</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-body" style="text-align:center;">
+          <div style="font-size:10px;text-transform:uppercase;color:var(--muted);letter-spacing:1px;">Co-op W Scans</div>
+          <div style="font-size:28px;font-weight:800;color:var(--amber);" id="map-coop-w">0</div>
+          <div style="font-size:10px;color:var(--muted);">Within geofence</div>
+        </div>
       </div>
     </div>
   </div>
