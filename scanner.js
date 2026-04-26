@@ -200,43 +200,47 @@ async function onScanSuccess(decodedText) {
     issued_at: qr.issued_at
   };
 
-  // Simulate 3-factor verification
-  var result = await verifyFactors(payload, qr);
-  resultEl.innerHTML = buildResultHTML(result);
-
-  // Save scan record — offline-first
-  var scanRecord = {
-    participant_name: result.participant_name || 'Participant ' + qr.participant_id.substring(0, 8),
-    board: qr.board_id.substring(0, 8),
-    site: result.site || 'Berekuso',
-    action: qr.action_type,
-    status: result.status,
-    gps_lat: payload.gps_lat,
-    gps_lng: payload.gps_lng,
-    gps_distance_m: result.factors.gps.distance_m,
-    qr_valid: result.factors.qr.pass,
-    timestamp_delta_s: result.factors.timestamp.delta_seconds,
-    co2_avoided_kg: qr.action_type === 'firewood_avoidance' ? 12.5 : 0,
-    points_awarded: result.points_awarded
-  };
+  // Try Edge Function verification if online
+  var result = null;
+  var usedOfflineQueue = false;
 
   if (supabase && isOnline) {
     try {
-      var res = await supabase.from('scans').insert(scanRecord);
-      if (res.error) throw res.error;
-    } catch(e) {
-      // Network failed mid-request — queue it
-      var queue = getOfflineQueue();
-      queue.push(scanRecord);
-      saveOfflineQueue(queue);
-      showToast('Saved to offline queue — will sync later', 'warning');
+      var { data, error } = await supabase.functions.invoke('verify-scan', { body: payload });
+      if (error) throw error;
+      result = data;
+    } catch (e) {
+      console.log('Edge function failed, falling back to local verify:', e);
     }
-  } else {
-    // Offline — store locally
+  }
+
+  // Fallback: Local verification & offline queue
+  if (!result) {
+    result = await verifyFactors(payload, qr);
+    usedOfflineQueue = true;
+    
+    var scanRecord = {
+      participant_name: result.participant_name || 'Participant ' + qr.participant_id.substring(0, 8),
+      board: qr.board_id.substring(0, 8),
+      site: result.site || 'Berekuso',
+      action: qr.action_type,
+      status: result.status,
+      gps_lat: payload.gps_lat,
+      gps_lng: payload.gps_lng,
+      gps_distance_m: result.factors.gps.distance_m,
+      qr_valid: result.factors.qr.pass,
+      timestamp_delta_s: result.factors.timestamp.delta_seconds,
+      co2_avoided_kg: qr.action_type === 'firewood_avoidance' ? 12.5 : 0,
+      points_awarded: result.points_awarded
+    };
+
     var queue = getOfflineQueue();
     queue.push(scanRecord);
     saveOfflineQueue(queue);
+    showToast('Saved to offline queue — will sync later', 'warning');
   }
+
+  resultEl.innerHTML = buildResultHTML(result);
 
   // Also add to the live feed
   var now = new Date();
@@ -399,6 +403,29 @@ function demoScan() {
   var demoQR = 'CC-v1|b4f8a1c2-0000-0000-0000-000000000001|p9d3e7f0-0000-0000-0000-000000000001|firewood_avoidance|' + Math.floor(Date.now()/1000) + '|a3f9c82b1d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a';
   onScanSuccess(demoQR);
 }
+
+// ── #10 Desktop detection — show warning for non-mobile ──
+var isMobileDevice = /Android|iPhone|iPad|iPod|Opera Mini|IEMobile/i.test(navigator.userAgent);
+(function() {
+  var origSetTab = null;
+  document.addEventListener('DOMContentLoaded', function() {
+    // Show desktop warning when scanner tab is first clicked
+    if (!isMobileDevice) {
+      var warn = document.getElementById('desktop-scanner-warning');
+      if (warn) warn.style.display = '';
+    }
+  });
+  // Also check periodically
+  setInterval(function() {
+    if (!isMobileDevice) {
+      var warn = document.getElementById('desktop-scanner-warning');
+      var panel = document.getElementById('panel-scanner');
+      if (warn && panel && panel.style.display !== 'none') {
+        warn.style.display = '';
+      }
+    }
+  }, 1000);
+})();
 
 // ── PWA — Register service worker ──
 if ('serviceWorker' in navigator) {

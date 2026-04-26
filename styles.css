@@ -525,6 +525,30 @@ input[type=date]:focus { border-color: var(--green); box-shadow: 0 0 12px rgba(1
 }
 @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
 
+/* ── Loading spinner ── */
+.spinner {
+  width: 28px; height: 28px;
+  border: 3px solid var(--border);
+  border-top-color: var(--green);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  margin: 0 auto;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Desktop scanner warning ── */
+.desktop-warning {
+  background: var(--adim);
+  border: 1px solid rgba(244,161,52,0.25);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+  margin-bottom: 12px;
+}
+.desktop-warning .icon { font-size: 28px; margin-bottom: 6px; }
+.desktop-warning .title { font-size: 13px; font-weight: 700; color: var(--amber); }
+.desktop-warning .desc { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
 /* ── Animations ── */
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(16px); }

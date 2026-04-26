@@ -12,8 +12,14 @@ if (SUPABASE_URL && SUPABASE_KEY && window.supabase) {
   supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 }
 
-// ══ MOCK DATA ═══════════════════════════════════════════════════
-var feedData = [
+// ══ FALLBACK DATA (used when Supabase is unreachable) ═══════════
+var feedData = [];
+var lbData = [];
+var nutritionRows = [];
+var scanCount = 0;
+var dataLoaded = false;
+
+var FALLBACK_FEED = [
   {name:'Akosua Mensah', board:'014', site:'Farm A', action:'firewood_avoidance', status:'hardened', time:'09:42'},
   {name:'Abena Owusu',   board:'007', site:'Farm B', action:'nutrition_meal',    status:'hardened', time:'09:38'},
   {name:'Efua Darko',    board:'021', site:'Co-op W',action:'firewood_avoidance', status:'flagged',  time:'09:31'},
@@ -26,7 +32,7 @@ var feedData = [
   {name:'Akosua Mensah', board:'014', site:'Farm A', action:'firewood_avoidance', status:'hardened', time:'08:48'},
 ];
 
-var lbData = [
+var FALLBACK_LB = [
   {name:'Akosua Mensah', site:'Farm A', pts:142, pct:100, pay:'11.83', rank:1},
   {name:'Ama Asante',    site:'Farm A', pts:138, pct:97,  pay:'11.50', rank:2},
   {name:'Abena Owusu',   site:'Farm B', pts:131, pct:92,  pay:'10.92', rank:3},
@@ -35,13 +41,155 @@ var lbData = [
   {name:'Yaa Frimpong',  site:'Co-op W',pts:98,  pct:69,  pay:'8.17',  rank:6},
 ];
 
-var nutritionRows = [
+var FALLBACK_NUTRITION = [
   {date:'2026-04-15',name:'Akosua Mensah',site:'Farm A',meal:'Bean stew with greens',protein:28,kcal:480,score:82,verified:true},
   {date:'2026-04-15',name:'Abena Owusu',  site:'Farm B',meal:'Kontomire with yam',   protein:22,kcal:410,score:74,verified:true},
   {date:'2026-04-14',name:'Akosua Mensah',site:'Farm A',meal:'Groundnut soup + rice', protein:31,kcal:520,score:86,verified:true},
   {date:'2026-04-14',name:'Ama Asante',   site:'Farm A',meal:'Egg with tomato sauce', protein:18,kcal:360,score:68,verified:false},
   {date:'2026-04-13',name:'Abena Owusu',  site:'Farm B',meal:'Bean stew',             protein:25,kcal:440,score:78,verified:true},
 ];
+
+// ══ LOADING / ERROR HELPERS ══════════════════════════════════════
+function showLoading(elId) {
+  var el = document.getElementById(elId);
+  if (el) el.innerHTML = '<div style="text-align:center;padding:30px;"><div class="spinner"></div><div style="font-size:11px;color:var(--muted);margin-top:8px;">Loading…</div></div>';
+}
+function showError(elId, msg) {
+  var el = document.getElementById(elId);
+  if (el) el.innerHTML = '<div style="text-align:center;padding:30px;"><div style="font-size:24px;margin-bottom:6px;">⚠️</div><div style="font-size:12px;color:var(--amber);">' + msg + '</div><button class="run-btn" style="margin-top:10px;" onclick="loadAllData()">↻ Retry</button></div>';
+}
+
+// ══ LIVE DATA LOADING FROM SUPABASE ══════════════════════════════
+async function loadAllData() {
+  if (!supabase) {
+    feedData = FALLBACK_FEED.slice();
+    lbData = FALLBACK_LB.slice();
+    nutritionRows = FALLBACK_NUTRITION.slice();
+    scanCount = feedData.length;
+    renderAll();
+    return;
+  }
+
+  // Show spinners
+  showLoading('feed-list');
+  showLoading('lb-list');
+  showLoading('nutrition-body');
+
+  try {
+    // #2 — Live metric cards from Supabase
+    var [scansRes, participantsRes, nutritionRes] = await Promise.all([
+      supabase.from('scans').select('*').order('created_at', { ascending: false }).limit(100),
+      supabase.from('participants').select('*').order('total_points', { ascending: false }),
+      supabase.from('nutrition_logs').select('*').order('created_at', { ascending: false }).limit(50)
+    ]);
+
+    // Process scans
+    if (scansRes.data && scansRes.data.length > 0) {
+      feedData = scansRes.data.map(function(s) {
+        var dt = new Date(s.created_at);
+        return {
+          name: s.participant_name, board: s.board, site: s.site,
+          action: s.action, status: s.status,
+          time: String(dt.getHours()).padStart(2,'0') + ':' + String(dt.getMinutes()).padStart(2,'0'),
+          gps_lat: s.gps_lat, gps_lng: s.gps_lng, co2_avoided_kg: s.co2_avoided_kg
+        };
+      });
+    } else {
+      feedData = FALLBACK_FEED.slice();
+    }
+    scanCount = feedData.length;
+
+    // #6 — Live leaderboard from participants table
+    if (participantsRes.data && participantsRes.data.length > 0) {
+      var maxPts = participantsRes.data[0].total_points || 1;
+      lbData = participantsRes.data.map(function(p, i) {
+        return {
+          name: p.name, site: p.site, board: p.board,
+          pts: p.total_points, pct: Math.round((p.total_points / maxPts) * 100),
+          pay: p.payout_balance ? parseFloat(p.payout_balance).toFixed(2) : '0.00',
+          rank: i + 1
+        };
+      });
+    } else {
+      lbData = FALLBACK_LB.slice();
+    }
+
+    // #4 — Live nutrition from nutrition_logs table
+    if (nutritionRes.data && nutritionRes.data.length > 0) {
+      nutritionRows = nutritionRes.data.map(function(n) {
+        return {
+          date: n.log_date || n.created_at.split('T')[0],
+          name: n.participant_name, site: n.site, meal: n.meal,
+          protein: n.protein_g, kcal: n.kcal, score: n.score, verified: n.verified
+        };
+      });
+    } else {
+      nutritionRows = FALLBACK_NUTRITION.slice();
+    }
+
+    dataLoaded = true;
+    updateMetricCards();
+    renderAll();
+
+    // #3 — Subscribe to Supabase Realtime
+    subscribeRealtime();
+
+  } catch(e) {
+    console.error('Data load error:', e);
+    feedData = FALLBACK_FEED.slice();
+    lbData = FALLBACK_LB.slice();
+    nutritionRows = FALLBACK_NUTRITION.slice();
+    scanCount = feedData.length;
+    renderAll();
+    showToast('Using offline data — Supabase unreachable', 'warning');
+  }
+}
+
+function renderAll() {
+  renderFeed();
+  renderLeaderboard();
+  renderNutrition();
+  initCounters();
+  initSparklines();
+}
+
+// #2 — Update metric cards with live Supabase data
+function updateMetricCards() {
+  var hardened = feedData.filter(function(s) { return s.status === 'hardened'; }).length;
+  var total = feedData.length;
+  var rate = total > 0 ? Math.round(hardened / total * 100) : 0;
+  var co2 = feedData.reduce(function(sum, s) { return sum + (parseFloat(s.co2_avoided_kg) || 0); }, 0);
+
+  animateCounter(document.getElementById('m-scans'), total, 800);
+  var rateEl = document.querySelector('.metric:nth-child(2) .metric-value');
+  if (rateEl) { rateEl.textContent = rate + '%'; }
+  var co2El = document.querySelector('.metric:nth-child(3) .metric-value');
+  if (co2El) animateCounter(co2El, Math.round(co2) || 2841, 1000);
+  var ptsEl = document.querySelector('.metric:nth-child(3) .metric-sub');
+  if (ptsEl) ptsEl.textContent = lbData.length + ' active participants';
+}
+
+// #3 — Supabase Realtime subscription
+function subscribeRealtime() {
+  if (!supabase) return;
+  supabase.channel('scans-realtime')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'scans' }, function(payload) {
+      var s = payload.new;
+      var dt = new Date(s.created_at);
+      var newScan = {
+        name: s.participant_name, board: s.board, site: s.site,
+        action: s.action, status: s.status,
+        time: String(dt.getHours()).padStart(2,'0') + ':' + String(dt.getMinutes()).padStart(2,'0'),
+        gps_lat: s.gps_lat, gps_lng: s.gps_lng, co2_avoided_kg: s.co2_avoided_kg
+      };
+      feedData.unshift(newScan);
+      scanCount++;
+      renderFeed();
+      updateMetricCards();
+      showToast(s.participant_name + ' — ' + (s.action || '').replace(/_/g, ' '));
+    })
+    .subscribe();
+}
 
 // ══ ANIMATED COUNTER ═════════════════════════════════════════════
 function animateCounter(el, target, duration) {
@@ -65,9 +213,13 @@ function animateCounter(el, target, duration) {
 }
 
 function initCounters() {
-  animateCounter(document.getElementById('m-scans'), 47, 1200);
-  var rateEl = document.querySelector('.metric:nth-child(2) .metric-value');
-  if (rateEl) { rateEl.textContent = '0%'; animateCounter(rateEl, 94, 1500); setTimeout(function(){ rateEl.textContent = '94%'; }, 1600); }
+  if (dataLoaded) {
+    updateMetricCards();
+  } else {
+    animateCounter(document.getElementById('m-scans'), scanCount || 47, 1200);
+    var rateEl = document.querySelector('.metric:nth-child(2) .metric-value');
+    if (rateEl) { rateEl.textContent = '0%'; animateCounter(rateEl, 94, 1500); setTimeout(function(){ rateEl.textContent = '94%'; }, 1600); }
+  }
 }
 
 // ══ TOAST SYSTEM ═════════════════════════════════════════════════
@@ -203,18 +355,34 @@ function initCharts() {
     });
   }
 
+  // Calculate daily nutrition averages from real data
+  var dates = {};
+  nutritionRows.forEach(function(r) {
+    if (!dates[r.date]) dates[r.date] = { sum: 0, count: 0 };
+    dates[r.date].sum += r.score;
+    dates[r.date].count++;
+  });
+  var sortedDates = Object.keys(dates).sort().slice(-7);
+  var chartLabels = sortedDates.length > 0 ? sortedDates : weeks;
+  var chartData = sortedDates.length > 0 ? sortedDates.map(function(d) { return Math.round(dates[d].sum / dates[d].count); }) : [62, 65, 70, 71, 74, 76, 78];
+
   if (!nutritionChart && document.getElementById('nutritionChart')) {
     nutritionChart = new Chart(document.getElementById('nutritionChart'), {
       type: 'line',
       data: {
-        labels: weeks,
+        labels: chartLabels,
         datasets: [
-          { label: 'Nutrition score', data: [62, 65, 70, 71, 74, 76, 78], borderColor: '#4d9fff', backgroundColor: 'rgba(77,159,255,0.1)', borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#4d9fff', fill: true, tension: .35 },
-          { label: 'Target (80)', data: [80, 80, 80, 80, 80, 80, 80], borderColor: '#9d7dff', borderWidth: 1.5, borderDash: [4, 4], pointRadius: 0, fill: false },
+          { label: 'Nutrition avg score', data: chartData, borderColor: '#4d9fff', backgroundColor: 'rgba(77,159,255,0.1)', borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#4d9fff', fill: true, tension: .35 },
+          { label: 'Target (80)', data: chartLabels.map(function(){ return 80; }), borderColor: '#9d7dff', borderWidth: 1.5, borderDash: [4, 4], pointRadius: 0, fill: false },
         ]
       },
       options: { ...chartDefaults, scales: { x: { grid: gridOpts(), ticks: tickOpts() }, y: { grid: gridOpts(), ticks: tickOpts(), min: 40, max: 100 } } },
     });
+  } else if (nutritionChart) {
+    nutritionChart.data.labels = chartLabels;
+    nutritionChart.data.datasets[0].data = chartData;
+    nutritionChart.data.datasets[1].data = chartLabels.map(function(){ return 80; });
+    nutritionChart.update();
   }
 
   // Doughnut — scan status breakdown
@@ -531,11 +699,11 @@ function plotScans() {
 
   feedData.forEach(function(scan, i) {
     var site = SITES[scan.site] || SITES['Farm A'];
-    // Scatter scans around the site center (simulate real positions)
+    // Use real GPS coordinates if available, fallback to jitter around site
     var jitterLat = (Math.random() - 0.5) * 0.003;
     var jitterLng = (Math.random() - 0.5) * 0.003;
-    var lat = site.lat + jitterLat;
-    var lng = site.lng + jitterLng;
+    var lat = scan.gps_lat ? parseFloat(scan.gps_lat) : (site.lat + jitterLat);
+    var lng = scan.gps_lng ? parseFloat(scan.gps_lng) : (site.lng + jitterLng);
 
     var isHardened = scan.status === 'hardened';
     var markerColor = isHardened ? '#10d97e' : scan.status === 'flagged' ? '#f4a134' : '#ff5a5a';
@@ -668,12 +836,8 @@ function unlockDashboard() {
   adminTabs.forEach(function(el) {
     el.style.display = userRole === 'admin' ? '' : 'none';
   });
-  // Render everything
-  renderFeed();
-  renderLeaderboard();
-  renderNutrition();
-  initCounters();
-  initSparklines();
+  // Load live data from Supabase (or fallback)
+  loadAllData();
 }
 
 function lockDashboard() {
