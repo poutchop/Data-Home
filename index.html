@@ -27,9 +27,6 @@
     <input class="modal-input" type="password" id="auth-pass" placeholder="Password"/>
     <button class="modal-btn" id="auth-submit" onclick="handleAuth()">Sign In</button>
     <div class="modal-toggle" id="auth-toggle-text">Need an account? <a onclick="toggleAuthMode()">Sign up</a></div>
-    <div style="text-align:center;margin-top:10px;">
-      <a style="font-size:11px;color:var(--muted);cursor:pointer;" onclick="hideAuth()">Continue as guest →</a>
-    </div>
   </div>
 </div>
 
@@ -49,7 +46,8 @@
     Live hardening feed
   </div>
   <button class="theme-btn" onclick="toggleTheme()" title="Toggle theme">☀ / ☾</button>
-  <button class="theme-btn" id="auth-btn" onclick="showAuth()" style="color:var(--green);">Sign In</button>
+  <span class="pilot-badge" id="role-label" style="display:none;font-weight:700;">User</span>
+  <button class="theme-btn" id="auth-btn" onclick="showAuth()" style="color:var(--green);display:none;">Sign In</button>
   <div class="user-avatar" id="user-avatar" style="display:none;" onclick="handleLogout()" title="Click to sign out"></div>
 </div>
 
@@ -58,10 +56,11 @@
   <button class="tab active" onclick="setTab('feed',this)">Hardening feed</button>
   <button class="tab" onclick="setTab('analytics',this)">Climate analytics</button>
   <button class="tab" onclick="setTab('leaderboard',this)">Leaderboard</button>
-  <button class="tab" onclick="setTab('provost',this)">Provost portal</button>
+  <button class="tab" onclick="setTab('provost',this)" data-tab="provost" style="display:none;">Provost portal</button>
 </div>
 
-<!-- ══ BODY ══ -->
+<!-- ══ APP CONTENT (hidden until login) ══ -->
+<div id="app-content" style="display:none;">
 <div class="body">
 
   <!-- Metric cards -->
@@ -301,6 +300,7 @@
   </div>
 
 </div><!-- /body -->
+</div><!-- /app-content -->
 
 <div class="footer">
   Carbon Clarity Data Vault · dMRV Platform · Ashesi University Pilot · v2.0.0<br>

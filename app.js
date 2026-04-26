@@ -1,8 +1,12 @@
 // ══ SUPABASE CONFIG ═══════════════════════════════════════════════
-const SUPABASE_URL = '';  // Add your Supabase project URL
-const SUPABASE_KEY = '';  // Add your Supabase anon key
+const SUPABASE_URL = 'https://hbvrfuypyzkvpuobjynw.supabase.co';
+const SUPABASE_KEY = '';  // Paste your Supabase anon key here (starts with eyJ...)
 let supabase = null;
 let currentUser = null;
+let userRole = 'user'; // 'admin' or 'user'
+
+// Admin emails — add your email here to get admin access
+const ADMIN_EMAILS = ['admin@carbonclarify.com', 'poutchop@gmail.com'];
 
 if (SUPABASE_URL && SUPABASE_KEY && window.supabase) {
   supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -388,7 +392,7 @@ function loadTheme() {
   if (saved === 'light') document.body.classList.add('light');
 }
 
-// ══ AUTH MODAL ═══════════════════════════════════════════════════
+// ══ AUTH WALL — blocks all content until login ═══════════════════
 function showAuth() {
   var m = document.getElementById('auth-modal');
   if (m) m.classList.add('active');
@@ -429,37 +433,78 @@ async function handleAuth() {
       if (result.error) throw result.error;
       currentUser = result.data.user;
       hideAuth();
-      updateAuthUI();
-      showToast('Welcome, ' + email.split('@')[0] + '!');
+      onLoginSuccess();
     } catch (e) {
       showToast(e.message || 'Auth error', 'warning');
     }
   } else {
-    // Demo mode
-    currentUser = { email: email, id: 'demo' };
+    // Demo mode — still requires login
+    currentUser = { email: email, id: 'demo_' + Date.now() };
+    localStorage.setItem('dv-user', JSON.stringify(currentUser));
     hideAuth();
-    updateAuthUI();
-    showToast('Signed in (demo mode)');
+    onLoginSuccess();
   }
+}
+
+function onLoginSuccess() {
+  // Check if admin
+  userRole = ADMIN_EMAILS.includes((currentUser.email || '').toLowerCase()) ? 'admin' : 'user';
+  updateAuthUI();
+  unlockDashboard();
+  showToast('Welcome, ' + (currentUser.email || 'User').split('@')[0] + '!' + (userRole === 'admin' ? ' (Admin)' : ''));
+}
+
+function unlockDashboard() {
+  // Show the main content
+  document.getElementById('app-content').style.display = '';
+  // Show/hide admin elements
+  var adminEls = document.querySelectorAll('.admin-only');
+  adminEls.forEach(function(el) {
+    el.style.display = userRole === 'admin' ? '' : 'none';
+  });
+  // Hide provost tab for non-admins
+  var provostTab = document.querySelector('[data-tab="provost"]');
+  if (provostTab) provostTab.style.display = userRole === 'admin' ? '' : 'none';
+  // Render everything
+  renderFeed();
+  renderLeaderboard();
+  renderNutrition();
+  initCounters();
+  initSparklines();
+}
+
+function lockDashboard() {
+  document.getElementById('app-content').style.display = 'none';
+  showAuth();
 }
 
 function updateAuthUI() {
   var avatar = document.getElementById('user-avatar');
   var authBtn = document.getElementById('auth-btn');
+  var roleLabel = document.getElementById('role-label');
   if (currentUser) {
     var initial = (currentUser.email || 'U')[0].toUpperCase();
     if (avatar) { avatar.textContent = initial; avatar.style.display = 'flex'; }
     if (authBtn) authBtn.style.display = 'none';
+    if (roleLabel) {
+      roleLabel.textContent = userRole === 'admin' ? 'Admin' : 'User';
+      roleLabel.style.display = '';
+      roleLabel.style.color = userRole === 'admin' ? 'var(--amber)' : 'var(--green)';
+    }
   } else {
     if (avatar) avatar.style.display = 'none';
     if (authBtn) authBtn.style.display = '';
+    if (roleLabel) roleLabel.style.display = 'none';
   }
 }
 
 async function handleLogout() {
   if (supabase) await supabase.auth.signOut();
   currentUser = null;
+  userRole = 'user';
+  localStorage.removeItem('dv-user');
   updateAuthUI();
+  lockDashboard();
   showToast('Signed out');
 }
 
@@ -494,12 +539,40 @@ function addNewScan() {
   showToast(newScan.name + ' — ' + newScan.action.replace(/_/g, ' '));
 }
 
-// ══ INIT ════════════════════════════════════════════════════════
+// ══ INIT — Auth wall on startup ══════════════════════════════════
 loadTheme();
-renderFeed();
-renderLeaderboard();
-renderNutrition();
-initCounters();
-initSparklines();
-updateAuthUI();
-setInterval(addNewScan, 8000);
+
+// Check for existing session
+(async function initApp() {
+  var restored = false;
+
+  // Try Supabase session first
+  if (supabase) {
+    try {
+      var session = await supabase.auth.getSession();
+      if (session.data.session) {
+        currentUser = session.data.session.user;
+        restored = true;
+      }
+    } catch(e) {}
+  }
+
+  // Try demo session from localStorage
+  if (!restored) {
+    var saved = localStorage.getItem('dv-user');
+    if (saved) {
+      try {
+        currentUser = JSON.parse(saved);
+        restored = true;
+      } catch(e) {}
+    }
+  }
+
+  if (restored && currentUser) {
+    onLoginSuccess();
+  } else {
+    lockDashboard();
+  }
+
+  setInterval(addNewScan, 8000);
+})();
