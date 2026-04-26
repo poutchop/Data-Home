@@ -254,6 +254,43 @@ async function onScanSuccess(decodedText) {
 
   showToast(result.status === 'hardened' ? '✅ HARDENED — Payout queued' : '⚠️ FLAGGED — Review needed',
     result.status === 'hardened' ? 'success' : 'warning');
+
+  // Show SMS receipt preview
+  if (result.status === 'hardened') {
+    showSmsReceipt(result, qr);
+  }
+}
+
+// ── SMS Receipt simulation ──
+function showSmsReceipt(result, qr) {
+  var info = actionInfo(qr.action_type);
+  var now = new Date();
+  var dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  var timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+  var smsText = 'Carbon Clarity ✅\n'
+    + '────────────────\n'
+    + result.participant_name + '\n'
+    + info.label + ' — Week 4\n'
+    + 'Points: +' + result.points_awarded + ' pts\n'
+    + 'Status: HARDENED\n'
+    + 'Date: ' + dateStr + ' ' + timeStr + '\n'
+    + '────────────────\n'
+    + 'Total: ' + (142 + result.points_awarded) + ' pts\n'
+    + 'Payout: GHS 0.25 queued\n'
+    + 'via MTN MoMo ****7731';
+
+  var receiptEl = document.getElementById('scanner-result');
+  if (receiptEl) {
+    receiptEl.innerHTML += '<div style="margin-top:12px;background:var(--surf2);border-radius:12px;padding:14px;border:1px solid rgba(16,217,126,0.2);">'
+      + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">'
+        + '<span style="font-size:16px;">📱</span>'
+        + '<span style="font-size:12px;font-weight:700;color:var(--fg);">SMS Receipt Preview</span>'
+        + '<span style="font-size:10px;color:var(--muted);">→ MTN ****7731</span>'
+      + '</div>'
+      + '<pre style="font-family:\'JetBrains Mono\',monospace;font-size:11px;line-height:1.5;color:var(--green);white-space:pre-wrap;margin:0;">' + smsText + '</pre>'
+    + '</div>';
+  }
 }
 
 // ── 3-Factor verification logic ──
@@ -362,3 +399,40 @@ function demoScan() {
   var demoQR = 'CC-v1|b4f8a1c2-0000-0000-0000-000000000001|p9d3e7f0-0000-0000-0000-000000000001|firewood_avoidance|' + Math.floor(Date.now()/1000) + '|a3f9c82b1d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a';
   onScanSuccess(demoQR);
 }
+
+// ── PWA — Register service worker ──
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/Data-Home/sw.js').then(function(reg) {
+    console.log('SW registered:', reg.scope);
+  }).catch(function(err) {
+    console.log('SW failed:', err);
+  });
+}
+
+// ── PWA Install prompt ──
+var deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', function(e) {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  // Show install button
+  var btn = document.getElementById('pwa-install-btn');
+  if (btn) btn.style.display = '';
+});
+
+function installPwa() {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  deferredInstallPrompt.userChoice.then(function(result) {
+    if (result.outcome === 'accepted') {
+      showToast('✅ App installed — find it on your home screen');
+    }
+    deferredInstallPrompt = null;
+    var btn = document.getElementById('pwa-install-btn');
+    if (btn) btn.style.display = 'none';
+  });
+}
+
+// Init network status on load
+setTimeout(updateQueueBadge, 500);
+// Try syncing any queued scans on load
+setTimeout(syncOfflineQueue, 2000);
