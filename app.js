@@ -1,6 +1,6 @@
 // ══ SUPABASE CONFIG ═══════════════════════════════════════════════
 const SUPABASE_URL = 'https://hbvrfuypyzkvpuobjynw.supabase.co';
-const SUPABASE_KEY = '';  // Paste your Supabase anon key here (starts with eyJ...)
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhidnJmdXlweXprdnB1b2JqeW53Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNTM1NzYsImV4cCI6MjA5MjcyOTU3Nn0.UR_mcEFMc31YP443zeCfCOVYjV6groSoofDbZbco7fw';
 let supabase = null;
 let currentUser = null;
 let userRole = 'user'; // 'admin' or 'user'
