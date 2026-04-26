@@ -260,7 +260,7 @@
         <input type="date" id="date-from" value="2026-04-01"/>
         <span style="color:var(--muted);">to</span>
         <input type="date" id="date-to" value="2026-04-15"/>
-        <button class="export-btn" onclick="exportCsv()">⬇ Export CSV</button>
+        <button class="export-btn" onclick="exportExcel()">⤓ Export Excel (4 sheets)</button>
       </div>
     </div>
 
@@ -314,7 +314,11 @@
           <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">
             Point your camera at the QR code on the participant's board. The scan will auto-submit.
           </div>
-          <div id="scanner-gps-status" style="font-size:11px;color:var(--muted);margin-bottom:12px;">GPS: waiting for lock…</div>
+          <div style="display:flex;gap:12px;font-size:11px;color:var(--muted);margin-bottom:12px;">
+            <div id="scanner-gps-status">GPS: waiting for lock…</div>
+            <div id="network-status">● Checking…</div>
+            <div id="queue-badge" style="display:none;background:var(--amber);color:#111;padding:1px 8px;border-radius:8px;font-weight:700;font-size:10px;">0 queued</div>
+          </div>
           <div id="qr-reader" style="width:100%;border-radius:12px;overflow:hidden;background:var(--surf2);min-height:100px;"></div>
           <div id="scanner-status" style="font-size:12px;color:var(--muted);margin-top:10px;text-align:center;">Ready to scan</div>
           <div style="display:flex;gap:8px;margin-top:12px;">

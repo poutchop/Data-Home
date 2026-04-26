@@ -6,6 +6,69 @@ var scannerActive = false;
 var html5QrCode = null;
 var lastGPS = { lat: null, lng: null, accuracy: null };
 
+// ── Offline scan queue ──
+var QUEUE_KEY = 'dv-offline-queue';
+var isOnline = navigator.onLine;
+
+function getOfflineQueue() {
+  try { return JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]'); } catch(e) { return []; }
+}
+function saveOfflineQueue(queue) {
+  localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+  updateQueueBadge();
+}
+function updateQueueBadge() {
+  var queue = getOfflineQueue();
+  var badge = document.getElementById('queue-badge');
+  if (badge) {
+    badge.textContent = queue.length + ' queued';
+    badge.style.display = queue.length > 0 ? '' : 'none';
+  }
+  var indicator = document.getElementById('network-status');
+  if (indicator) {
+    indicator.innerHTML = isOnline
+      ? '<span style="color:var(--green);">● Online</span>'
+      : '<span style="color:var(--red);">● Offline</span> — scans will queue locally';
+  }
+}
+
+// Listen for network changes
+window.addEventListener('online', function() {
+  isOnline = true;
+  updateQueueBadge();
+  showToast('Back online — syncing queued scans…');
+  syncOfflineQueue();
+});
+window.addEventListener('offline', function() {
+  isOnline = false;
+  updateQueueBadge();
+  showToast('You are offline — scans will be queued locally', 'warning');
+});
+
+// Sync queued scans when back online
+async function syncOfflineQueue() {
+  if (!supabase || !isOnline) return;
+  var queue = getOfflineQueue();
+  if (queue.length === 0) return;
+
+  var synced = 0;
+  var failed = [];
+
+  for (var i = 0; i < queue.length; i++) {
+    try {
+      var res = await supabase.from('scans').insert(queue[i]);
+      if (res.error) throw res.error;
+      synced++;
+    } catch(e) {
+      failed.push(queue[i]);
+    }
+  }
+
+  saveOfflineQueue(failed);
+  if (synced > 0) showToast('✅ Synced ' + synced + ' queued scan' + (synced > 1 ? 's' : ''));
+  if (failed.length > 0) showToast(failed.length + ' scan(s) failed to sync — will retry', 'warning');
+}
+
 // ── GPS tracking (runs in background) ──
 function startGPSTracking() {
   if (!navigator.geolocation) {
@@ -141,24 +204,38 @@ async function onScanSuccess(decodedText) {
   var result = await verifyFactors(payload, qr);
   resultEl.innerHTML = buildResultHTML(result);
 
-  // Save to Supabase if connected
-  if (supabase) {
+  // Save scan record — offline-first
+  var scanRecord = {
+    participant_name: result.participant_name || 'Participant ' + qr.participant_id.substring(0, 8),
+    board: qr.board_id.substring(0, 8),
+    site: result.site || 'Berekuso',
+    action: qr.action_type,
+    status: result.status,
+    gps_lat: payload.gps_lat,
+    gps_lng: payload.gps_lng,
+    gps_distance_m: result.factors.gps.distance_m,
+    qr_valid: result.factors.qr.pass,
+    timestamp_delta_s: result.factors.timestamp.delta_seconds,
+    co2_avoided_kg: qr.action_type === 'firewood_avoidance' ? 12.5 : 0,
+    points_awarded: result.points_awarded
+  };
+
+  if (supabase && isOnline) {
     try {
-      await supabase.from('scans').insert({
-        participant_name: result.participant_name || 'Participant ' + qr.participant_id.substring(0, 8),
-        board: qr.board_id.substring(0, 8),
-        site: result.site || 'Berekuso',
-        action: qr.action_type,
-        status: result.status,
-        gps_lat: payload.gps_lat,
-        gps_lng: payload.gps_lng,
-        gps_distance_m: result.factors.gps.distance_m,
-        qr_valid: result.factors.qr.pass,
-        timestamp_delta_s: result.factors.timestamp.delta_seconds,
-        co2_avoided_kg: qr.action_type === 'firewood_avoidance' ? 12.5 : 0,
-        points_awarded: result.points_awarded
-      });
-    } catch(e) { console.log('DB save error:', e); }
+      var res = await supabase.from('scans').insert(scanRecord);
+      if (res.error) throw res.error;
+    } catch(e) {
+      // Network failed mid-request — queue it
+      var queue = getOfflineQueue();
+      queue.push(scanRecord);
+      saveOfflineQueue(queue);
+      showToast('Saved to offline queue — will sync later', 'warning');
+    }
+  } else {
+    // Offline — store locally
+    var queue = getOfflineQueue();
+    queue.push(scanRecord);
+    saveOfflineQueue(queue);
   }
 
   // Also add to the live feed

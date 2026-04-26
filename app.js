@@ -351,20 +351,111 @@ function runVerifier() {
   }, 900);
 }
 
-// ══ CSV EXPORT ═══════════════════════════════════════════════════
-function exportCsv() {
-  var headers = ['date', 'participant', 'site', 'meal', 'protein_g', 'kcal', 'nutrition_score', 'researcher_verified'];
-  var rows = nutritionRows.map(function(r) {
-    return [r.date, r.name, r.site, '"' + r.meal + '"', r.protein, r.kcal, r.score, r.verified].join(',');
+
+// ══ EXCEL EXPORT — 4-sheet workbook for Provost/GAC ══════════════
+async function exportExcel() {
+  showToast('Generating Excel report…');
+
+  // Fetch live data from Supabase if available
+  var scansData = feedData;
+  var participantsData = lbData;
+  var nutritionData = nutritionRows;
+
+  if (supabase) {
+    try {
+      var s = await supabase.from('scans').select('*').order('created_at', { ascending: false }).limit(500);
+      if (s.data && s.data.length > 0) scansData = s.data;
+      var p = await supabase.from('participants').select('*').order('total_points', { ascending: false });
+      if (p.data && p.data.length > 0) participantsData = p.data;
+      var n = await supabase.from('nutrition_logs').select('*').order('created_at', { ascending: false }).limit(200);
+      if (n.data && n.data.length > 0) nutritionData = n.data;
+    } catch(e) {}
+  }
+
+  // Sheet 1: Scans Audit Log
+  var sheet1 = [['Date', 'Time', 'Participant', 'Board', 'Site', 'Action', 'Status', 'GPS Lat', 'GPS Lng', 'GPS Distance (m)', 'QR Valid', 'CO₂ Avoided (kg)', 'Points']];
+  scansData.forEach(function(s) {
+    var dt = s.created_at ? new Date(s.created_at) : new Date();
+    sheet1.push([
+      dt.toISOString().split('T')[0], s.time || dt.toTimeString().substring(0,5),
+      s.participant_name || s.name || '', s.board || '', s.site || '',
+      (s.action || '').replace(/_/g, ' '), s.status || '',
+      s.gps_lat || '', s.gps_lng || '', s.gps_distance_m || '',
+      s.qr_valid !== undefined ? (s.qr_valid ? 'Yes' : 'No') : '',
+      s.co2_avoided_kg || '', s.points_awarded || s.pts || ''
+    ]);
   });
-  var csv = [headers.join(',')].concat(rows).join('\n');
-  var blob = new Blob([csv], { type: 'text/csv' });
+
+  // Sheet 2: Participants
+  var sheet2 = [['Name', 'Board', 'Site', 'Total Points', 'Payout Balance (GHS)', 'MoMo Number']];
+  participantsData.forEach(function(p) {
+    sheet2.push([p.name || '', p.board || '', p.site || '', p.total_points || p.pts || '', p.payout_balance || p.pay || '', p.momo_number || '']);
+  });
+
+  // Sheet 3: Nutrition Logs
+  var sheet3 = [['Date', 'Participant', 'Site', 'Meal', 'Protein (g)', 'Kcal', 'Score', 'Verified']];
+  nutritionData.forEach(function(n) {
+    sheet3.push([n.log_date || n.date || '', n.participant_name || n.name || '', n.site || '', n.meal || '', n.protein_g || n.protein || '', n.kcal || '', n.score || '', n.verified ? 'Yes' : 'No']);
+  });
+
+  // Sheet 4: Weekly Summary
+  var totalScans = scansData.length;
+  var hardened = scansData.filter(function(s) { return s.status === 'hardened'; }).length;
+  var flagged = scansData.filter(function(s) { return s.status === 'flagged'; }).length;
+  var totalCO2 = scansData.reduce(function(sum, s) { return sum + (parseFloat(s.co2_avoided_kg) || 0); }, 0);
+  var totalPoints = participantsData.reduce(function(sum, p) { return sum + (p.total_points || p.pts || 0); }, 0);
+
+  var sheet4 = [
+    ['Carbon Clarity Data Vault — Weekly Report'],
+    ['Generated', new Date().toISOString()],
+    ['Pilot', 'Berekuso · Ashesi University · Week 4'],
+    [''],
+    ['METRIC', 'VALUE'],
+    ['Total Scans', totalScans],
+    ['Hardened', hardened],
+    ['Flagged', flagged],
+    ['Verification Rate', totalScans > 0 ? Math.round(hardened / totalScans * 100) + '%' : 'N/A'],
+    ['CO₂ Avoided (kg)', totalCO2.toFixed(1)],
+    ['Active Participants', participantsData.length],
+    ['Total Points Issued', totalPoints],
+    [''],
+    ['SITE BREAKDOWN', 'Participants', 'Scans'],
+    ['Berekuso Farm A', participantsData.filter(function(p){return (p.site||'').includes('Farm A');}).length, scansData.filter(function(s){return (s.site||'').includes('Farm A');}).length],
+    ['Berekuso Farm B', participantsData.filter(function(p){return (p.site||'').includes('Farm B');}).length, scansData.filter(function(s){return (s.site||'').includes('Farm B');}).length],
+    ['Taanso Co-op W', participantsData.filter(function(p){return (p.site||'').includes('Co-op');}).length, scansData.filter(function(s){return (s.site||'').includes('Co-op');}).length],
+  ];
+
+  // Build Excel XML (works without SheetJS library)
+  var xml = '<?xml version="1.0"?>\n<?mso-application progid="Excel.Sheet"?>\n';
+  xml += '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">\n';
+
+  function addSheet(name, data) {
+    xml += '<Worksheet ss:Name="' + name + '"><Table>\n';
+    data.forEach(function(row, ri) {
+      xml += '<Row>';
+      row.forEach(function(cell) {
+        var type = typeof cell === 'number' ? 'Number' : 'String';
+        xml += '<Cell><Data ss:Type="' + type + '">' + (cell !== null && cell !== undefined ? String(cell).replace(/&/g,'&amp;').replace(/</g,'&lt;') : '') + '</Data></Cell>';
+      });
+      xml += '</Row>\n';
+    });
+    xml += '</Table></Worksheet>\n';
+  }
+
+  addSheet('Scans Audit Log', sheet1);
+  addSheet('Participants', sheet2);
+  addSheet('Nutrition Logs', sheet3);
+  addSheet('Weekly Summary', sheet4);
+  xml += '</Workbook>';
+
+  var blob = new Blob([xml], { type: 'application/vnd.ms-excel' });
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'carbon_clarity_nutrition.csv';
+  var today = new Date().toISOString().split('T')[0];
+  a.download = 'CarbonClarity_DataVault_' + today + '.xls';
   a.click();
   URL.revokeObjectURL(a.href);
-  showToast('CSV exported successfully');
+  showToast('✅ Excel report downloaded — 4 sheets');
 }
 
 // ══ TABS ═════════════════════════════════════════════════════════
