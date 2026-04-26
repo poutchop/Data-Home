@@ -1,9 +1,6 @@
 -- ══ Carbon Clarity Data Vault — Supabase Schema ══
 -- Run this in your Supabase SQL Editor to set up the database
 
--- Enable Row Level Security
-ALTER DATABASE postgres SET "app.jwt_secret" TO 'your-jwt-secret';
-
 -- ── Participants table ──
 CREATE TABLE IF NOT EXISTS participants (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -24,7 +21,7 @@ CREATE TABLE IF NOT EXISTS scans (
   participant_name TEXT NOT NULL,
   board TEXT NOT NULL,
   site TEXT NOT NULL,
-  action TEXT NOT NULL CHECK (action IN ('firewood_avoidance', 'nutrition_meal', 'solar_drying')),
+  action TEXT NOT NULL CHECK (action IN ('firewood_avoidance', 'nutrition_meal', 'solar_drying', 'organic_fertilizer')),
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('hardened', 'flagged', 'rejected', 'pending')),
   gps_lat DECIMAL(10,6),
   gps_lng DECIMAL(10,6),
