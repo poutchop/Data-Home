@@ -441,22 +441,27 @@ var deferredInstallPrompt = null;
 window.addEventListener('beforeinstallprompt', function(e) {
   e.preventDefault();
   deferredInstallPrompt = e;
-  // Show install button
-  var btn = document.getElementById('pwa-install-btn');
-  if (btn) btn.style.display = '';
 });
 
 function installPwa() {
-  if (!deferredInstallPrompt) return;
-  deferredInstallPrompt.prompt();
-  deferredInstallPrompt.userChoice.then(function(result) {
-    if (result.outcome === 'accepted') {
-      showToast('✅ App installed — find it on your home screen');
+  if (deferredInstallPrompt) {
+    // Android Chrome / Supported browsers
+    deferredInstallPrompt.prompt();
+    deferredInstallPrompt.userChoice.then(function(result) {
+      if (result.outcome === 'accepted') {
+        showToast('✅ App installed — find it on your home screen');
+      }
+      deferredInstallPrompt = null;
+    });
+  } else {
+    // iOS Safari or already installed or desktop
+    var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    if (isIOS) {
+      alert('To install on iPhone/iPad:\n1. Tap the Share button at the bottom of Safari (square with an arrow pointing up)\n2. Scroll down and tap "Add to Home Screen"');
+    } else {
+      alert('To install this app, open the browser menu (⋮) and tap "Install app" or "Add to Home screen".');
     }
-    deferredInstallPrompt = null;
-    var btn = document.getElementById('pwa-install-btn');
-    if (btn) btn.style.display = 'none';
-  });
+  }
 }
 
 // Init network status on load
