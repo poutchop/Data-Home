@@ -49,6 +49,87 @@ var FALLBACK_NUTRITION = [
   {date:'2026-04-13',name:'Abena Owusu',  site:'Farm B',meal:'Bean stew',             protein:25,kcal:440,score:78,verified:true},
 ];
 
+function demoScan() {
+  var btn = document.getElementById('scanner-start-btn');
+  if (btn) btn.disabled = true;
+  document.getElementById('scanner-result').innerHTML = '<div style="text-align:center;padding:30px 0;"><div class="spinner"></div><div style="font-size:11px;color:var(--muted);margin-top:10px;">Simulating scan...</div></div>';
+  setTimeout(function() {
+    addNewScan();
+    if (btn) btn.disabled = false;
+  }, 1200);
+}
+
+// ══ PARTICIPANT STORY ═══════════════════════════════════════════
+async function loadParticipantStory() {
+  var body = document.getElementById('participant-story-body');
+  if (!body) return;
+
+  if (!supabase) {
+    body.innerHTML = '<div style="font-size:12px;color:var(--muted);">Supabase not connected. Offline mode.</div>';
+    return;
+  }
+
+  try {
+    // Fetch the top participant
+    var res = await supabase.from('participants').select('*').order('total_points', { ascending: false }).limit(1);
+    if (!res.data || res.data.length === 0) throw new Error('No participant data');
+    var p = res.data[0];
+
+    // Fetch total CO2 for this participant
+    var co2Res = await supabase.from('scans').select('co2_avoided_kg').eq('participant_id', p.id).eq('status', 'hardened');
+    var totalCO2 = 0;
+    if (co2Res.data) {
+      totalCO2 = co2Res.data.reduce(function(sum, row) { return sum + (parseFloat(row.co2_avoided_kg) || 0); }, 0);
+    }
+
+    body.innerHTML = `
+      <div style="width:64px;height:64px;border-radius:50%;background:var(--gdim);border:2px solid var(--green);margin:0 auto 16px;display:flex;align-items:center;justify-content:center;font-size:24px;color:var(--green);font-weight:800;">
+        ${(p.name || 'U').charAt(0)}
+      </div>
+      <div style="font-size:18px;font-weight:800;margin-bottom:4px;">${p.name}</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:20px;">${p.site} · Board #${p.board}</div>
+      
+      <div style="display:flex;justify-content:center;gap:12px;margin-bottom:24px;">
+        <div style="background:var(--surf2);padding:10px 16px;border-radius:10px;text-align:center;">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;">Total Points</div>
+          <div style="font-size:18px;font-weight:800;color:var(--gold);">${p.total_points}</div>
+        </div>
+        <div style="background:var(--surf2);padding:10px 16px;border-radius:10px;text-align:center;">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;">CO₂ Avoided</div>
+          <div style="font-size:18px;font-weight:800;color:var(--green);">${totalCO2.toFixed(1)} kg</div>
+        </div>
+      </div>
+      
+      <p style="font-size:13px;line-height:1.6;color:var(--text);background:rgba(255,255,255,0.03);padding:16px;border-radius:12px;border:1px solid var(--border);">
+        By consistently avoiding firewood and utilizing solar drying techniques, <b>${p.name}</b> has emerged as a climate champion in the ${p.site} community. Her verified actions have directly contributed to cleaner air and local reforestation efforts, earning her automated MoMo payouts.
+      </p>
+    `;
+
+  } catch (e) {
+    console.error('Participant story error:', e);
+    body.innerHTML = '<div style="font-size:12px;color:var(--muted);">Failed to load participant story.</div>';
+  }
+}
+
+// ══ INIT ════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', function() {
+  loadTheme();
+  initSparklines();
+  // We don't call updateAuthUI or showAuth immediately here,
+  // we let the user explore the Impact Wall.
+  var savedUser = localStorage.getItem('dv-user');
+  if (savedUser) {
+    try {
+      currentUser = JSON.parse(savedUser);
+      onLoginSuccess();
+    } catch(e) {
+      lockDashboard();
+    }
+  } else {
+    lockDashboard();
+  }
+});
+
 // ══ LOADING / ERROR HELPERS ══════════════════════════════════════
 function showLoading(elId) {
   var el = document.getElementById(elId);
@@ -133,6 +214,7 @@ async function loadAllData() {
 
     dataLoaded = true;
     updateMetricCards();
+    loadParticipantStory();
     renderAll();
 
     // #3 — Subscribe to Supabase Realtime
@@ -165,26 +247,55 @@ function renderAll() {
 }
 
 // #2 — Update metric cards with live Supabase data
-function updateMetricCards() {
-  var hardened = feedData.filter(function(s) { return s.status === 'hardened'; }).length;
-  var total = feedData.length;
-  var rate = total > 0 ? Math.round(hardened / total * 100) : 0;
-  var co2 = feedData.reduce(function(sum, s) { return sum + (parseFloat(s.co2_avoided_kg) || 0); }, 0);
-  
-  // Calculate total payouts from all participants
-  var totalPayouts = lbData.reduce(function(sum, p) { return sum + (parseFloat(p.pay) || 0); }, 0);
+async function updateMetricCards() {
+  if (!supabase) {
+    // Fallback if no supabase
+    var hardened = feedData.filter(function(s) { return s.status === 'hardened'; }).length;
+    var total = feedData.length;
+    var rate = total > 0 ? Math.round(hardened / total * 100) : 0;
+    var co2 = feedData.reduce(function(sum, s) { return sum + (parseFloat(s.co2_avoided_kg) || 0); }, 0);
+    var totalPayouts = lbData.reduce(function(sum, p) { return sum + (parseFloat(p.pay) || 0); }, 0);
+    
+    animateCounter(document.getElementById('m-scans'), total, 800);
+    var rateEl = document.querySelector('.metric:nth-child(2) .metric-value');
+    if (rateEl) { rateEl.textContent = rate + '%'; }
+    var co2El = document.querySelector('.metric:nth-child(3) .metric-value');
+    if (co2El) animateCounter(co2El, Math.round(co2) || 2841, 1000);
+    var ptsEl = document.querySelector('.metric:nth-child(3) .metric-sub');
+    if (ptsEl) ptsEl.textContent = lbData.length + ' active participants';
+    var payEl = document.querySelector('.metric:nth-child(4) .metric-value');
+    if (payEl) animateCounter(payEl, Math.round(totalPayouts) || 1240, 1000);
+    return;
+  }
 
-  animateCounter(document.getElementById('m-scans'), total, 800);
-  var rateEl = document.querySelector('.metric:nth-child(2) .metric-value');
-  if (rateEl) { rateEl.textContent = rate + '%'; }
-  var co2El = document.querySelector('.metric:nth-child(3) .metric-value');
-  if (co2El) animateCounter(co2El, Math.round(co2) || 2841, 1000);
-  var ptsEl = document.querySelector('.metric:nth-child(3) .metric-sub');
-  if (ptsEl) ptsEl.textContent = lbData.length + ' active participants';
-  
-  // Update payout metric
-  var payEl = document.querySelector('.metric:nth-child(4) .metric-value');
-  if (payEl) animateCounter(payEl, Math.round(totalPayouts) || 1240, 1000);
+  try {
+    const [scansRes, hardenedRes, co2Res, payoutsRes] = await Promise.all([
+      supabase.from('scans').select('*', { count: 'exact', head: true }),
+      supabase.from('scans').select('*', { count: 'exact', head: true }).eq('status', 'hardened'),
+      supabase.from('scans').select('co2_avoided_kg').eq('status', 'hardened'),
+      supabase.from('participants').select('payout_balance')
+    ]);
+
+    const totalScans = scansRes.count || 0;
+    const hardenedScans = hardenedRes.count || 0;
+    const verificationRate = totalScans > 0 ? Math.round((hardenedScans / totalScans) * 100) : 0;
+    
+    const totalCO2 = co2Res.data ? co2Res.data.reduce((sum, row) => sum + (parseFloat(row.co2_avoided_kg) || 0), 0) : 0;
+    const totalPayouts = payoutsRes.data ? payoutsRes.data.reduce((sum, row) => sum + (parseFloat(row.payout_balance) || 0), 0) : 0;
+
+    animateCounter(document.getElementById('m-scans'), totalScans, 800);
+    var rateEl = document.querySelector('.metric:nth-child(2) .metric-value');
+    if (rateEl) { rateEl.textContent = verificationRate + '%'; }
+    var co2El = document.querySelector('.metric:nth-child(3) .metric-value');
+    if (co2El) animateCounter(co2El, Math.round(totalCO2), 1000);
+    var ptsEl = document.querySelector('.metric:nth-child(3) .metric-sub');
+    if (ptsEl) ptsEl.textContent = (payoutsRes.data ? payoutsRes.data.length : 0) + ' active participants';
+    var payEl = document.querySelector('.metric:nth-child(4) .metric-value');
+    if (payEl) animateCounter(payEl, Math.round(totalPayouts), 1000);
+
+  } catch(e) {
+    console.error('Error fetching live metrics', e);
+  }
 }
 
 // #3 — Supabase Realtime subscription
@@ -754,16 +865,24 @@ function plotScans() {
 }
 
 // ══ TABS ═════════════════════════════════════════════════════════
-var panels = ['feed', 'analytics', 'leaderboard', 'map', 'provost', 'scanner'];
+var panels = ['impact', 'feed', 'analytics', 'leaderboard', 'map', 'provost', 'scanner'];
 function setTab(id, el) {
-  panels.forEach(function(p) {
-    var panel = document.getElementById('panel-' + p);
-    if (panel) panel.style.display = p === id ? '' : 'none';
-  });
-  document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
-  el.classList.add('active');
-  if (id === 'analytics' || id === 'provost') setTimeout(initCharts, 80);
-  if (id === 'map') setTimeout(initMap, 100);
+  function switchTab() {
+    panels.forEach(function(p) {
+      var panel = document.getElementById('panel-' + p);
+      if (panel) panel.style.display = p === id ? '' : 'none';
+    });
+    document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+    el.classList.add('active');
+    if (id === 'analytics' || id === 'provost') setTimeout(initCharts, 80);
+    if (id === 'map') setTimeout(initMap, 100);
+  }
+
+  if (document.startViewTransition) {
+    document.startViewTransition(switchTab);
+  } else {
+    switchTab();
+  }
 }
 
 // ══ THEME ════════════════════════════════════════════════════════
@@ -842,24 +961,29 @@ function onLoginSuccess() {
 }
 
 function unlockDashboard() {
-  // Show the main content
-  document.getElementById('app-content').style.display = '';
-  // Show/hide admin elements
+  var secureTabs = document.querySelectorAll('.secure-tab');
+  secureTabs.forEach(function(el) { el.style.display = ''; });
+
   var adminEls = document.querySelectorAll('.admin-only');
   adminEls.forEach(function(el) {
     el.style.display = userRole === 'admin' ? '' : 'none';
   });
-  // Hide provost and scanner tabs for non-admins
+
   var adminTabs = document.querySelectorAll('[data-tab="provost"],[data-tab="scanner"]');
   adminTabs.forEach(function(el) {
     el.style.display = userRole === 'admin' ? '' : 'none';
   });
-  // Load live data from Supabase (or fallback)
+
   loadAllData();
 }
 
 function lockDashboard() {
-  document.getElementById('app-content').style.display = 'none';
+  var secureTabs = document.querySelectorAll('.secure-tab');
+  secureTabs.forEach(function(el) { el.style.display = 'none'; });
+  var impactTab = document.querySelector('.tab[onclick*="impact"]');
+  if (impactTab) setTab('impact', impactTab);
+  
+  loadAllData(); // Load public data for Impact Wall
   showAuth();
 }
 

@@ -1,4 +1,5 @@
 {
+  "name": "data-home",
   "version": 2,
   "builds": [
     { "src": "**/*", "use": "@vercel/static" }
