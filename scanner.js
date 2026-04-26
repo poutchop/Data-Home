@@ -56,10 +56,11 @@ async function syncOfflineQueue() {
 
   for (var i = 0; i < queue.length; i++) {
     try {
-      var res = await supabase.from('scans').insert(queue[i]);
-      if (res.error) throw res.error;
+      var { data, error } = await supabase.functions.invoke('verify-scan', { body: queue[i] });
+      if (error) throw error;
       synced++;
     } catch(e) {
+      console.log('Sync failed for item', e);
       failed.push(queue[i]);
     }
   }
@@ -219,23 +220,8 @@ async function onScanSuccess(decodedText) {
     result = await verifyFactors(payload, qr);
     usedOfflineQueue = true;
     
-    var scanRecord = {
-      participant_name: result.participant_name || 'Participant ' + qr.participant_id.substring(0, 8),
-      board: qr.board_id.substring(0, 8),
-      site: result.site || 'Berekuso',
-      action: qr.action_type,
-      status: result.status,
-      gps_lat: payload.gps_lat,
-      gps_lng: payload.gps_lng,
-      gps_distance_m: result.factors.gps.distance_m,
-      qr_valid: result.factors.qr.pass,
-      timestamp_delta_s: result.factors.timestamp.delta_seconds,
-      co2_avoided_kg: qr.action_type === 'firewood_avoidance' ? 12.5 : 0,
-      points_awarded: result.points_awarded
-    };
-
     var queue = getOfflineQueue();
-    queue.push(scanRecord);
+    queue.push(payload);
     saveOfflineQueue(queue);
     showToast('Saved to offline queue — will sync later', 'warning');
   }

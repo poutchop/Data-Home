@@ -75,13 +75,17 @@ async function loadAllData() {
   showLoading('lb-list');
   showLoading('nutrition-body');
 
-  try {
-    // #2 — Live metric cards from Supabase
-    var [scansRes, participantsRes, nutritionRes] = await Promise.all([
-      supabase.from('scans').select('*').order('created_at', { ascending: false }).limit(100),
-      supabase.from('participants').select('*').order('total_points', { ascending: false }),
-      supabase.from('nutrition_logs').select('*').order('created_at', { ascending: false }).limit(50)
-    ]);
+  var attempts = 0;
+  var maxAttempts = 3;
+  while (attempts < maxAttempts) {
+    try {
+      attempts++;
+      // #2 — Live metric cards from Supabase
+      var [scansRes, participantsRes, nutritionRes] = await Promise.all([
+        supabase.from('scans').select('*').order('created_at', { ascending: false }).limit(100),
+        supabase.from('participants').select('*').order('total_points', { ascending: false }),
+        supabase.from('nutrition_logs').select('*').order('created_at', { ascending: false }).limit(50)
+      ]);
 
     // Process scans
     if (scansRes.data && scansRes.data.length > 0) {
@@ -134,14 +138,21 @@ async function loadAllData() {
     // #3 — Subscribe to Supabase Realtime
     subscribeRealtime();
 
-  } catch(e) {
-    console.error('Data load error:', e);
-    feedData = FALLBACK_FEED.slice();
-    lbData = FALLBACK_LB.slice();
-    nutritionRows = FALLBACK_NUTRITION.slice();
-    scanCount = feedData.length;
-    renderAll();
-    showToast('Using offline data — Supabase unreachable', 'warning');
+      break; // Successfully loaded
+    } catch(e) {
+      if (attempts < maxAttempts) {
+        console.warn('Network timeout, retrying data load... (' + attempts + '/' + maxAttempts + ')');
+        await new Promise(function(resolve) { setTimeout(resolve, 1500); });
+      } else {
+        console.error('Data load error after retries:', e);
+        feedData = FALLBACK_FEED.slice();
+        lbData = FALLBACK_LB.slice();
+        nutritionRows = FALLBACK_NUTRITION.slice();
+        scanCount = feedData.length;
+        renderAll();
+        showToast('Using offline data — Supabase unreachable', 'warning');
+      }
+    }
   }
 }
 
@@ -159,6 +170,9 @@ function updateMetricCards() {
   var total = feedData.length;
   var rate = total > 0 ? Math.round(hardened / total * 100) : 0;
   var co2 = feedData.reduce(function(sum, s) { return sum + (parseFloat(s.co2_avoided_kg) || 0); }, 0);
+  
+  // Calculate total payouts from all participants
+  var totalPayouts = lbData.reduce(function(sum, p) { return sum + (parseFloat(p.pay) || 0); }, 0);
 
   animateCounter(document.getElementById('m-scans'), total, 800);
   var rateEl = document.querySelector('.metric:nth-child(2) .metric-value');
@@ -167,6 +181,10 @@ function updateMetricCards() {
   if (co2El) animateCounter(co2El, Math.round(co2) || 2841, 1000);
   var ptsEl = document.querySelector('.metric:nth-child(3) .metric-sub');
   if (ptsEl) ptsEl.textContent = lbData.length + ' active participants';
+  
+  // Update payout metric
+  var payEl = document.querySelector('.metric:nth-child(4) .metric-value');
+  if (payEl) animateCounter(payEl, Math.round(totalPayouts) || 1240, 1000);
 }
 
 // #3 — Supabase Realtime subscription
