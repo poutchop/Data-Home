@@ -368,7 +368,7 @@ function exportCsv() {
 }
 
 // ══ TABS ═════════════════════════════════════════════════════════
-var panels = ['feed', 'analytics', 'leaderboard', 'provost'];
+var panels = ['feed', 'analytics', 'leaderboard', 'provost', 'scanner'];
 function setTab(id, el) {
   panels.forEach(function(p) {
     var panel = document.getElementById('panel-' + p);
@@ -462,9 +462,11 @@ function unlockDashboard() {
   adminEls.forEach(function(el) {
     el.style.display = userRole === 'admin' ? '' : 'none';
   });
-  // Hide provost tab for non-admins
-  var provostTab = document.querySelector('[data-tab="provost"]');
-  if (provostTab) provostTab.style.display = userRole === 'admin' ? '' : 'none';
+  // Hide provost and scanner tabs for non-admins
+  var adminTabs = document.querySelectorAll('[data-tab="provost"],[data-tab="scanner"]');
+  adminTabs.forEach(function(el) {
+    el.style.display = userRole === 'admin' ? '' : 'none';
+  });
   // Render everything
   renderFeed();
   renderLeaderboard();

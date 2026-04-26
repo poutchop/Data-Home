@@ -10,6 +10,7 @@
 <meta property="og:type" content="website"/>
 <link rel="icon" href="data:image/svg+xml,<svg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'><rect rx='20' width='100' height='100' fill='%230f1117'/><path d='M50 20L80 70H50H20L50 20Z' fill='%2310d97e' opacity='.7'/><circle cx='50' cy='48' r='12' fill='white'/></svg>"/>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script>
 <link rel="stylesheet" href="styles.css"/>
 </head>
@@ -57,6 +58,7 @@
   <button class="tab" onclick="setTab('analytics',this)">Climate analytics</button>
   <button class="tab" onclick="setTab('leaderboard',this)">Leaderboard</button>
   <button class="tab" onclick="setTab('provost',this)" data-tab="provost" style="display:none;">Provost portal</button>
+  <button class="tab" onclick="setTab('scanner',this)" data-tab="scanner" style="display:none;">📷 Scanner</button>
 </div>
 
 <!-- ══ APP CONTENT (hidden until login) ══ -->
@@ -299,6 +301,54 @@
     </div>
   </div>
 
+  <!-- ── PANEL: Scanner ── -->
+  <div id="panel-scanner" style="display:none;">
+    <div class="two-col">
+      <div class="card">
+        <div class="card-head">
+          <span style="font-size:16px;">📷</span>
+          QR Board Scanner — Field App
+          <span class="muted">Queen Mother access</span>
+        </div>
+        <div class="card-body">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">
+            Point your camera at the QR code on the participant's board. The scan will auto-submit.
+          </div>
+          <div id="scanner-gps-status" style="font-size:11px;color:var(--muted);margin-bottom:12px;">GPS: waiting for lock…</div>
+          <div id="qr-reader" style="width:100%;border-radius:12px;overflow:hidden;background:var(--surf2);min-height:100px;"></div>
+          <div id="scanner-status" style="font-size:12px;color:var(--muted);margin-top:10px;text-align:center;">Ready to scan</div>
+          <div style="display:flex;gap:8px;margin-top:12px;">
+            <button class="run-btn" id="scanner-start-btn" onclick="startScanner()" style="flex:1;">📷 Start Camera Scanner</button>
+            <button class="run-btn" id="scanner-stop-btn" onclick="stopScanner()" style="flex:1;display:none;background:rgba(255,90,90,0.12);border-color:rgba(255,90,90,0.3);color:var(--red);">■ Stop Scanner</button>
+          </div>
+          <button class="run-btn" onclick="demoScan()" style="margin-top:6px;background:var(--bdim);border-color:rgba(77,159,255,0.3);color:var(--blue);">🧪 Run Demo Scan (no camera needed)</button>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <div class="card">
+          <div class="card-head">Scan Result</div>
+          <div class="card-body" id="scanner-result">
+            <div style="text-align:center;padding:30px 0;color:var(--muted);font-size:12px;">No scan yet — start the scanner or run a demo scan</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head">QR Protocol — CC-v1</div>
+          <div class="card-body">
+            <div class="code-block" style="font-size:10px;line-height:1.6;">
+<span class="kw">CC-v1</span>|<span class="str">{board_id}</span>|<span class="str">{participant_id}</span>|<br>
+<span class="str">{action_type}</span>|<span class="str">{issued_at_unix}</span>|<br>
+<span class="str">{hmac_signature}</span><br><br>
+<span class="cm">// Each participant has 3 boards:</span><br>
+<span class="cm">//   #014A — Firewood Avoidance</span><br>
+<span class="cm">//   #014B — Nutrition Meal</span><br>
+<span class="cm">//   #014C — Solar Drying</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div><!-- /body -->
 </div><!-- /app-content -->
 
@@ -308,5 +358,6 @@
 </div>
 
 <script src="app.js"></script>
+<script src="scanner.js"></script>
 </body>
 </html>
