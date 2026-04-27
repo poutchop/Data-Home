@@ -454,3 +454,198 @@ function installPwa() {
 setTimeout(updateQueueBadge, 500);
 // Try syncing any queued scans on load
 setTimeout(syncOfflineQueue, 2000);
+
+// ══ WIZARD UI LOGIC ════════════════════════════════════════════════════════
+var wizardStep = 1;
+var wizardState = {};
+
+function openScannerWizard() {
+  wizardStep = 1;
+  wizardState = {};
+  var wk = document.getElementById('wizard-week'); if (wk) wk.value = 4;
+  var st = document.getElementById('wizard-stickers'); if (st) st.value = 0;
+  
+  var ph = document.getElementById('wizard-photo-placeholder'); if (ph) ph.style.display = '';
+  var img = document.getElementById('wizard-img'); 
+  if (img) { img.style.display = 'none'; img.src = ''; }
+  var pn = document.getElementById('photo-next-btn'); if (pn) pn.disabled = true;
+  
+  document.querySelectorAll('.wizard-check-item').forEach(function(el) { el.classList.remove('selected'); });
+  var an = document.getElementById('action-next-btn'); if (an) an.disabled = true;
+  
+  startGPSTracking();
+  renderWizard();
+}
+
+window.openScannerWizard = openScannerWizard;
+
+function nextStep() {
+  var wk = document.getElementById('wizard-week');
+  if (wizardStep === 2 && wk) wizardState.week_number = parseInt(wk.value) || 4;
+  var st = document.getElementById('wizard-stickers');
+  if (wizardStep === 4 && st) wizardState.sticker_count = parseInt(st.value) || 0;
+  
+  wizardStep = Math.min(7, wizardStep + 1);
+  renderWizard();
+}
+window.nextStep = nextStep;
+
+function prevStep() {
+  wizardStep = Math.max(1, wizardStep - 1);
+  renderWizard();
+}
+window.prevStep = prevStep;
+
+function selectAction(id, el) {
+  document.querySelectorAll('.wizard-check-item').forEach(function(n) { n.classList.remove('selected'); });
+  el.classList.add('selected');
+  wizardState.action = id;
+  var an = document.getElementById('action-next-btn'); if (an) an.disabled = false;
+}
+window.selectAction = selectAction;
+
+function handleWizardPhoto(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(evt) {
+    wizardState.photo = evt.target.result;
+    var ph = document.getElementById('wizard-photo-placeholder'); if (ph) ph.style.display = 'none';
+    var img = document.getElementById('wizard-img');
+    if (img) { img.src = wizardState.photo; img.style.display = ''; }
+    var pn = document.getElementById('photo-next-btn'); if (pn) pn.disabled = false;
+  };
+  reader.readAsDataURL(file);
+}
+window.handleWizardPhoto = handleWizardPhoto;
+
+function startWizardScanner() {
+  var st = document.getElementById('wizard-scanner-status');
+  if (st) st.textContent = 'Scanning...';
+  if (html5QrCode) return;
+  html5QrCode = new Html5Qrcode('wizard-qr-reader');
+  html5QrCode.start(
+    { facingMode: 'environment' },
+    { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
+    async function(decodedText) {
+      await stopWizardScanner();
+      wizardState.qr = decodedText;
+      processWizardScan();
+    },
+    function() {} 
+  ).catch(function(err) {
+    var st = document.getElementById('wizard-scanner-status');
+    if (st) st.textContent = 'Camera error: ' + err;
+  });
+}
+window.startWizardScanner = startWizardScanner;
+
+function stopWizardScanner() {
+  if (html5QrCode) {
+    var p = html5QrCode.stop().then(function() {
+      html5QrCode.clear();
+      html5QrCode = null;
+      var st = document.getElementById('wizard-scanner-status');
+      if (st) st.textContent = 'Stopped';
+    });
+    return p;
+  }
+  return Promise.resolve();
+}
+window.stopWizardScanner = stopWizardScanner;
+
+function resetWizard() {
+  openScannerWizard();
+}
+window.resetWizard = resetWizard;
+
+function renderWizard() {
+  document.querySelectorAll('.wizard-step').forEach(function(el) { el.classList.remove('active'); });
+  var stepEl = document.getElementById('step-' + wizardStep);
+  if (stepEl) stepEl.classList.add('active');
+  
+  var bars = document.querySelectorAll('.wizard-progress .progress-bar');
+  bars.forEach(function(b, i) {
+    if (i < wizardStep) b.classList.add('active');
+    else b.classList.remove('active');
+  });
+
+  if (wizardStep === 1) {
+    var stat = document.getElementById('wizard-gps-status');
+    var nxt = document.getElementById('gps-next-btn');
+    if (lastGPS && lastGPS.accuracy && lastGPS.accuracy <= 50) {
+      if (stat) stat.innerHTML = '<span style="color:var(--green)">✓ GPS Locked (' + Math.round(lastGPS.accuracy) + 'm)</span>';
+      if (nxt) { nxt.disabled = false; nxt.textContent = 'Next'; }
+    } else {
+      if (stat) stat.innerHTML = 'Waiting for high-accuracy GPS...<br><span style="font-size:11px;color:var(--muted)">Current: ' + (lastGPS.accuracy ? Math.round(lastGPS.accuracy) + 'm' : 'Unknown') + '</span>';
+      if (nxt) { nxt.disabled = true; nxt.textContent = 'Waiting...'; }
+    }
+  }
+}
+
+async function processWizardScan() {
+  wizardStep = 7;
+  renderWizard();
+  var resEl = document.getElementById('wizard-result');
+  if (resEl) resEl.innerHTML = '<div class="spinner"></div><div style="text-align:center;margin-top:10px;font-size:12px;color:var(--muted)">Verifying CC-v1 Protocol...</div>';
+  
+  var qr = parseQRData(wizardState.qr);
+  if (!qr) {
+    if (resEl) resEl.innerHTML = '<div style="color:var(--red);text-align:center;">Invalid QR format. Not a CC-v1 payload.</div>';
+    return;
+  }
+  
+  var payload = {
+    board_id: qr.board_id,
+    participant_id: qr.participant_id,
+    action_type: wizardState.action || qr.action_type,
+    qr_hmac_received: qr.hmac,
+    gps_lat: lastGPS.lat,
+    gps_lng: lastGPS.lng,
+    gps_accuracy_m: lastGPS.accuracy,
+    week_number: wizardState.week_number,
+    sticker_count: wizardState.sticker_count,
+    photo_s3_key: 'offline_mode_img', 
+    scan_time_device: new Date().toISOString(),
+    issued_at: qr.issued_at
+  };
+
+  var result = null;
+  if (supabase && isOnline) {
+    try {
+      var { data, error } = await supabase.functions.invoke('verify-scan', { body: payload });
+      if (error) throw error;
+      result = data;
+    } catch(e) {}
+  }
+  
+  if (!result) {
+    result = await verifyFactors(payload, qr);
+    var queue = getOfflineQueue();
+    queue.push(payload);
+    saveOfflineQueue(queue);
+    showToast('Saved offline. Will sync later.', 'warning');
+  }
+
+  if (resEl) resEl.innerHTML = buildResultHTML(result);
+  
+  if (result.status === 'hardened') {
+    feedData.unshift({
+      name: result.participant_name || 'Participant',
+      board: qr.board_id.substring(0, 8),
+      site: result.site || 'Berekuso',
+      action: payload.action_type,
+      status: result.status,
+      time: String(new Date().getHours()).padStart(2, '0') + ':' + String(new Date().getMinutes()).padStart(2, '0')
+    });
+    scanCount++;
+    var sEl = document.getElementById('m-scans');
+    if (sEl) sEl.textContent = scanCount;
+  }
+}
+
+document.addEventListener('click', function(e) {
+  if (e.target.dataset && e.target.dataset.tab === 'scanner') {
+    setTimeout(openScannerWizard, 100);
+  }
+});

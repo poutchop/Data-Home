@@ -11,9 +11,14 @@
 <meta property="og:description" content="Real-time dashboard for monitoring, reporting & verification of climate impact data."/>
 <meta property="og:type" content="website"/>
 <link rel="icon" href="data:image/svg+xml,<svg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'><rect rx='20' width='100' height='100' fill='%230f1117'/><path d='M50 20L80 70H50H20L50 20Z' fill='%2310d97e' opacity='.7'/><circle cx='50' cy='48' r='12' fill='white'/></svg>"/>
-<link rel="apple-touch-icon" href="/Data-Home/icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Data Vault" />
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -26,15 +31,59 @@
 
 <!-- Auth Modal -->
 <div class="modal-overlay" id="auth-modal">
-  <div class="modal">
-    <h2 id="auth-title">Sign In</h2>
+  <!-- Sign In Form -->
+  <div class="modal" id="auth-signin-form">
+    <h2>Sign In</h2>
     <p>Access the Data Vault platform</p>
     <input class="modal-input" type="email" id="auth-email" placeholder="Email address"/>
     <input class="modal-input" type="password" id="auth-pass" placeholder="Password"/>
+    <div id="login-lockout-msg" style="color:var(--red);font-size:11px;margin-bottom:10px;display:none;">Too many failed attempts. Try again in 60s.</div>
     <button class="modal-btn" id="auth-submit" onclick="handleAuth()">Sign In</button>
-    <div class="modal-toggle" id="auth-toggle-text">Need an account? <a onclick="toggleAuthMode()">Sign up</a></div>
+    <div class="modal-toggle">Need an account? <a onclick="toggleAuthMode()">Request Access</a></div>
     <div style="text-align:center;margin-top:12px;"><a onclick="hideAuth()" style="color:var(--muted);font-size:12px;cursor:pointer;">← Back to Public Dashboard</a></div>
   </div>
+
+  <!-- Request Access Form -->
+  <div class="modal" id="auth-request-form" style="display:none;">
+    <h2>Request Access</h2>
+    <p>Apply for a pilot user account. An admin will review your request.</p>
+    <input class="modal-input" type="text" id="req-name" placeholder="Full Name"/>
+    <input class="modal-input" type="email" id="req-email" placeholder="Email address"/>
+    <input class="modal-input" type="password" id="req-pass" placeholder="Create Password" oninput="checkPassStrength(this.value)"/>
+    <div class="strength-meter" id="strength-meter"><div class="strength-bar" id="strength-bar"></div></div>
+    <button class="modal-btn" onclick="submitAccessRequest()">Submit Request</button>
+    <div class="modal-toggle">Already approved? <a onclick="toggleAuthMode()">Sign In</a></div>
+    <div style="text-align:center;margin-top:12px;"><a onclick="hideAuth()" style="color:var(--muted);font-size:12px;cursor:pointer;">← Back to Public Dashboard</a></div>
+  </div>
+</div>
+
+<!-- Photo Capture Modal (Audit Evidence) -->
+<div class="modal-overlay" id="photo-modal">
+  <div class="modal">
+    <h2 style="color:var(--green);">Audit Evidence</h2>
+    <p>Please take a clear photo of the board showing the stickers for GAC verification.</p>
+    
+    <div id="photo-preview-container" style="width:100%;aspect-ratio:4/3;background:var(--surf2);border-radius:12px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;overflow:hidden;border:2px dashed var(--border);">
+      <span id="photo-placeholder" style="color:var(--muted);font-size:12px;">No photo captured</span>
+      <img id="photo-preview" style="width:100%;height:100%;object-fit:cover;display:none;"/>
+    </div>
+
+    <input type="file" id="photo-input" accept="image/*" capture="environment" style="display:none;" onchange="handlePhotoSelect(event)"/>
+    
+    <div style="display:flex;gap:8px;">
+      <button class="modal-btn" onclick="document.getElementById('photo-input').click()" style="background:var(--bdim);border-color:var(--blue);color:var(--blue);">📷 Take Photo</button>
+      <button class="modal-btn" id="photo-submit-btn" onclick="finalizeScanWithPhoto()" disabled style="opacity:0.5;">Submit Audit Record</button>
+    </div>
+    <div style="text-align:center;margin-top:12px;"><a onclick="cancelPhotoCapture()" style="color:var(--red);font-size:11px;cursor:pointer;">Discard Scan</a></div>
+  </div>
+</div>
+
+<!-- Header branding -->
+<div class="branding-header" style="display:flex;align-items:center;gap:12px;padding:8px;background:var(--surf);border-bottom:1px solid var(--border);">
+  <img src="assets/logo-carbon.svg" alt="Carbon Clarity" height="32" onerror="this.style.display='none'"/>
+  <span style="font-size:14px;color:var(--muted);">
+    In partnership with <strong>Ashesi University</strong> · Supported by <strong>Catalyste+</strong> / Global Affairs Canada
+  </span>
 </div>
 
 <!-- ══ TOPBAR ══ -->
@@ -66,7 +115,7 @@
   <button class="tab secure-tab" style="display:none;" onclick="setTab('analytics',this)">Climate analytics</button>
   <button class="tab secure-tab" style="display:none;" onclick="setTab('leaderboard',this)">Leaderboard</button>
   <button class="tab secure-tab" style="display:none;" onclick="setTab('map',this)">🗺️ Map</button>
-  <button class="tab secure-tab" onclick="setTab('provost',this)" data-tab="provost" style="display:none;">Main portal</button>
+  <button class="tab secure-tab" onclick="setTab('main',this)" data-tab="main" style="display:none;">Main portal</button>
   <button class="tab secure-tab" onclick="setTab('scanner',this)" data-tab="scanner" style="display:none;">📷 Scanner</button>
 </div>
 
@@ -87,25 +136,25 @@
         <div class="metric-label">Total Verified Scans
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="#10d97e" stroke-width="1.2"/><path d="M6 4v3M6 8.5v.5" stroke="#10d97e" stroke-width="1.2" stroke-linecap="round"/></svg>
         </div>
-        <div class="metric-value" style="color:var(--green)" id="m-scans">...</div>
+        <div class="metric-value" style="color:var(--green)" id="m-scans">0</div>
         <div class="metric-sub" id="m-scans-sub">Cumulative total</div>
         <div class="metric-spark"><canvas id="spark-scans" style="width:100%;height:100%;"></canvas></div>
       </div>
       <div class="metric">
         <div class="metric-label">Verification rate</div>
-        <div class="metric-value" style="color:var(--blue)">...</div>
+        <div class="metric-value" style="color:var(--blue)" id="m-rate">0%</div>
         <div class="metric-sub">Triple-factor pass rate</div>
         <div class="metric-spark"><canvas id="spark-rate" style="width:100%;height:100%;"></canvas></div>
       </div>
-      <div class="metric">
+      <div class="metric admin-only">
         <div class="metric-label">CO₂ avoided (kg)</div>
-        <div class="metric-value" style="color:var(--amber)">...</div>
+        <div class="metric-value" style="color:var(--amber)" id="m-co2">0</div>
         <div class="metric-sub">Active participants</div>
         <div class="metric-spark"><canvas id="spark-co2" style="width:100%;height:100%;"></canvas></div>
       </div>
-      <div class="metric">
+      <div class="metric admin-only">
         <div class="metric-label">Payouts sent</div>
-        <div class="metric-value" style="color:var(--purple)">...</div>
+        <div class="metric-value" style="color:var(--purple)" id="m-payout">GHS 0</div>
         <div class="metric-sub">MTN &amp; Telecel MoMo</div>
         <div class="metric-spark"><canvas id="spark-pay" style="width:100%;height:100%;"></canvas></div>
       </div>
@@ -133,6 +182,31 @@
         </div>
       </div>
     </div>
+
+    <!-- CTA Footer -->
+    <section class="cta-footer" style="margin-top:40px;padding:20px;background:var(--surf2);text-align:center;border-radius:12px;">
+      <h3>Want to partner with Carbon Clarity?</h3>
+      <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:12px;">
+        <button class="run-btn" onclick="location='mailto:partner@carbonclarity.org'">
+          📧 Contact Us
+        </button>
+        <button class="run-btn" onclick="document.querySelector('[data-tab=\\'main\\']').click()">
+          🔍 View Research Hub
+        </button>
+        <button class="run-btn" onclick="location='https://github.com/carbonclarity/methodology'">
+          📄 Read the Methodology
+        </button>
+      </div>
+    </section>
+
+    <!-- Footer branding -->
+    <footer style="text-align:center;padding:16px;background:var(--surf);margin-top:40px;border-radius:12px;">
+      <img src="assets/logo-carbon.svg" alt="Carbon Clarity" height="28" onerror="this.style.display='none'"/>
+      <p style="margin:4px 0;color:var(--muted);font-size:12px;">
+        © 2026 Carbon Clarity – Ashesi University – Catalyste+
+      </p>
+    </footer>
+
   </div>
 
   <!-- ── PANEL: Feed ── -->
@@ -290,8 +364,8 @@
     </div>
   </div>
 
-  <!-- ── PANEL: Provost / Main Portal ── -->
-  <div id="panel-provost" style="display:none;">
+  <!-- ── PANEL: Main Portal ── -->
+  <div id="panel-main" style="display:none;">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
       <span style="font-size:14px;font-weight:700;">Main Portal</span>
       <span class="badge b-blue">Admin access</span>
@@ -313,7 +387,7 @@
 &nbsp;&nbsp;&amp;from=<span class="str">2026-04-01</span><br>
 &nbsp;&nbsp;&amp;to=<span class="str">2026-04-15</span><br>
 &nbsp;&nbsp;&amp;format=<span class="str">csv</span> <span class="cm">/* or json */</span><br>
-&nbsp;&nbsp;Authorization: Bearer &lt;provost-api-key&gt;<br><br>
+&nbsp;&nbsp;Authorization: Bearer &lt;admin-api-key&gt;<br><br>
 <span class="str">Response 200</span> → { scans[], nutrition_scores[], aggregate{} }
         </div>
       </div>
@@ -336,6 +410,22 @@
         <table class="tbl" id="nutrition-table">
           <thead><tr><th>Date</th><th>Participant</th><th>Site</th><th>Meal</th><th>Protein (g)</th><th>Kcal</th><th>Score</th><th>Verified</th></tr></thead>
           <tbody id="nutrition-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Access Requests Panel -->
+    <div class="card" style="margin-top:16px;">
+      <div class="card-head">
+        <span style="width:8px;height:8px;border-radius:3px;background:var(--amber);display:inline-block;"></span>
+        Pending Access Requests
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="tbl" id="pending-users-table">
+          <thead><tr><th>Name</th><th>Email</th><th>Date Requested</th><th>Action</th></tr></thead>
+          <tbody id="pending-users-body">
+            <tr><td colspan="4" style="text-align:center;padding:20px;color:var(--muted);">Loading requests...</td></tr>
+          </tbody>
         </table>
       </div>
     </div>
@@ -393,21 +483,109 @@
             <div class="title">You're on a desktop device</div>
             <div class="desc">The camera scanner is designed for the Queen Mother's phone in the field.<br>Use <b>Demo Scan</b> below to test the verification flow on this device.</div>
           </div>
-          <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">
-            Point your camera at the QR code on the participant's board. The scan will auto-submit.
+          <div id="scanner-wizard">
+            <div class="wizard-progress" id="wizard-progress">
+              <div class="progress-bar active"></div>
+              <div class="progress-bar"></div>
+              <div class="progress-bar"></div>
+              <div class="progress-bar"></div>
+              <div class="progress-bar"></div>
+              <div class="progress-bar"></div>
+              <div class="progress-bar"></div>
+            </div>
+
+            <!-- Step 1: GPS Lock -->
+            <div class="wizard-step active" id="step-1">
+              <h3 style="margin-bottom:12px;">Step 1: GPS Verification</h3>
+              <p style="font-size:12px;color:var(--muted);margin-bottom:16px;">The system requires a high-accuracy GPS lock (< 50m) before starting the audit.</p>
+              <div class="card" style="padding:20px;text-align:center;background:var(--surf2);">
+                <div id="wizard-gps-status" style="font-size:14px;font-weight:700;">Waiting for GPS…</div>
+                <div style="font-size:11px;color:var(--muted);margin-top:8px;">Accuracy required: 50m or less</div>
+              </div>
+              <div class="wizard-nav">
+                <button class="wizard-btn primary" id="gps-next-btn" disabled onclick="nextStep()">Waiting for Lock…</button>
+              </div>
+            </div>
+
+            <!-- Step 2: Select Week -->
+            <div class="wizard-step" id="step-2">
+              <h3 style="margin-bottom:12px;">Step 2: Pilot Week</h3>
+              <p style="font-size:12px;color:var(--muted);margin-bottom:16px;">Confirm the current pilot week for this audit session.</p>
+              <input type="number" id="wizard-week" value="4" min="1" max="12" class="modal-input" style="font-size:24px;text-align:center;font-weight:800;color:var(--green);"/>
+              <div class="wizard-nav">
+                <button class="wizard-btn" onclick="prevStep()">Back</button>
+                <button class="wizard-btn primary" onclick="nextStep()">Next</button>
+              </div>
+            </div>
+
+            <!-- Step 3: Select Action -->
+            <div class="wizard-step" id="step-3">
+              <h3 style="margin-bottom:12px;">Step 3: Action Type</h3>
+              <div class="wizard-check-item" onclick="selectAction('firewood_avoidance', this)">
+                <span class="wizard-icon">🔥</span>
+                <span class="wizard-label">Firewood Avoidance</span>
+              </div>
+              <div class="wizard-check-item" onclick="selectAction('nutrition_meal', this)">
+                <span class="wizard-icon">🥗</span>
+                <span class="wizard-label">Nutrition Meal</span>
+              </div>
+              <div class="wizard-check-item" onclick="selectAction('solar_drying', this)">
+                <span class="wizard-icon">☀️</span>
+                <span class="wizard-label">Solar Drying</span>
+              </div>
+              <div class="wizard-nav">
+                <button class="wizard-btn" onclick="prevStep()">Back</button>
+                <button class="wizard-btn primary" id="action-next-btn" disabled onclick="nextStep()">Next</button>
+              </div>
+            </div>
+
+            <!-- Step 4: Sticker Count -->
+            <div class="wizard-step" id="step-4">
+              <h3 style="margin-bottom:12px;">Step 4: Sticker Count</h3>
+              <p style="font-size:12px;color:var(--muted);margin-bottom:16px;">Count the physical stickers added to the board this week.</p>
+              <input type="number" id="wizard-stickers" value="0" min="0" max="21" class="modal-input" style="font-size:24px;text-align:center;font-weight:800;color:var(--amber);"/>
+              <div class="wizard-nav">
+                <button class="wizard-btn" onclick="prevStep()">Back</button>
+                <button class="wizard-btn primary" onclick="nextStep()">Next</button>
+              </div>
+            </div>
+
+            <!-- Step 5: Capture Photo -->
+            <div class="wizard-step" id="step-5">
+              <h3 style="margin-bottom:12px;">Step 5: Physical Evidence</h3>
+              <p style="font-size:12px;color:var(--muted);margin-bottom:16px;">Take a clear photo of the board showing the stickers.</p>
+              <div id="wizard-photo-preview" style="width:100%;aspect-ratio:4/3;background:var(--surf2);border-radius:12px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;overflow:hidden;border:2px dashed var(--border);">
+                <span id="wizard-photo-placeholder">No photo captured</span>
+                <img id="wizard-img" style="width:100%;height:100%;object-fit:cover;display:none;"/>
+              </div>
+              <input type="file" id="wizard-photo-input" accept="image/*" capture="environment" style="display:none;" onchange="handleWizardPhoto(event)"/>
+              <button class="wizard-btn secondary" onclick="document.getElementById('wizard-photo-input').click()">📷 Take Photo</button>
+              <div class="wizard-nav">
+                <button class="wizard-btn" onclick="prevStep()">Back</button>
+                <button class="wizard-btn primary" id="photo-next-btn" disabled onclick="nextStep()">Next</button>
+              </div>
+            </div>
+
+            <!-- Step 6: QR Scan -->
+            <div class="wizard-step" id="step-6">
+              <h3 style="margin-bottom:12px;">Step 6: QR Scan</h3>
+              <div id="wizard-qr-reader" style="width:100%;border-radius:12px;overflow:hidden;background:var(--surf2);min-height:200px;"></div>
+              <div id="wizard-scanner-status" style="font-size:12px;color:var(--muted);margin-top:10px;text-align:center;">Ready to scan</div>
+              <div class="wizard-nav">
+                <button class="wizard-btn" onclick="prevStep(); stopWizardScanner();">Back</button>
+                <button class="wizard-btn primary" id="wizard-scan-btn" onclick="startWizardScanner()">Start Scanner</button>
+              </div>
+            </div>
+
+            <!-- Step 7: Verification -->
+            <div class="wizard-step" id="step-7">
+              <h3 style="margin-bottom:12px;">Step 7: Result</h3>
+              <div id="wizard-result" style="padding:20px 0;"></div>
+              <div class="wizard-nav">
+                <button class="wizard-btn primary" onclick="resetWizard()">New Scan</button>
+              </div>
+            </div>
           </div>
-          <div style="display:flex;gap:12px;font-size:11px;color:var(--muted);margin-bottom:12px;">
-            <div id="scanner-gps-status">GPS: waiting for lock…</div>
-            <div id="network-status">● Checking…</div>
-            <div id="queue-badge" style="display:none;background:var(--amber);color:#111;padding:1px 8px;border-radius:8px;font-weight:700;font-size:10px;">0 queued</div>
-          </div>
-          <div id="qr-reader" style="width:100%;border-radius:12px;overflow:hidden;background:var(--surf2);min-height:100px;"></div>
-          <div id="scanner-status" style="font-size:12px;color:var(--muted);margin-top:10px;text-align:center;">Ready to scan</div>
-          <div style="display:flex;gap:8px;margin-top:12px;">
-            <button class="run-btn" id="scanner-start-btn" onclick="startScanner()" style="flex:1;">📷 Start Camera Scanner</button>
-            <button class="run-btn" id="scanner-stop-btn" onclick="stopScanner()" style="flex:1;display:none;background:rgba(255,90,90,0.12);border-color:rgba(255,90,90,0.3);color:var(--red);">■ Stop Scanner</button>
-          </div>
-          <button class="run-btn" onclick="demoScan()" style="margin-top:6px;background:var(--bdim);border-color:rgba(77,159,255,0.3);color:var(--blue);">🧪 Run Demo Scan (no camera needed)</button>
         </div>
       </div>
       <div style="display:flex;flex-direction:column;gap:14px;">
@@ -432,6 +610,16 @@
           </div>
         </div>
       </div>
+      <!-- Debug Manual Entry (Hidden by default) -->
+      <div id="scanner-debug" style="margin-top:20px;padding:12px;background:rgba(255,161,52,0.1);border:1px solid rgba(244,161,52,0.3);border-radius:12px;display:none;">
+        <div style="font-size:10px;color:var(--amber);text-transform:uppercase;margin-bottom:8px;font-weight:800;">🛠️ Debug: Manual QR Entry</div>
+        <input type="text" id="debug-qr-input" placeholder="Paste CC-v1 payload here..." style="width:100%;background:var(--surf);border:1px solid var(--border);padding:8px;border-radius:8px;color:var(--fg);font-size:11px;margin-bottom:8px;"/>
+        <button class="run-btn" style="background:var(--amber);color:#111;width:100%;" onclick="onScanSuccess(document.getElementById('debug-qr-input').value)">Test This Payload →</button>
+      </div>
+
+      <div style="text-align:center;margin-top:24px;">
+        <button class="run-btn" onclick="document.getElementById('scanner-debug').style.display='block'" style="background:none;border:none;color:var(--muted);font-size:10px;text-decoration:underline;">Troubleshoot scanning issues</button>
+      </div>
     </div>
   </div>
 
@@ -445,5 +633,7 @@
 
 <script src="app.js"></script>
 <script src="scanner.js"></script>
+<!-- Hidden QR Generator -->
+<div id="qr-gen-hidden" style="display:none;visibility:hidden;"></div>
 </body>
 </html>

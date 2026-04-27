@@ -1,18 +1,18 @@
-// ══ SUPABASE CONFIG ═══════════════════════════════════════════════
+﻿// ΓòÉΓòÉ SUPABASE CONFIG ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 const SUPABASE_URL = 'https://hbvrfuypyzkvpuobjynw.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhidnJmdXlweXprdnB1b2JqeW53Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNTM1NzYsImV4cCI6MjA5MjcyOTU3Nn0.UR_mcEFMc31YP443zeCfCOVYjV6groSoofDbZbco7fw';
 let supabase = null;
 let currentUser = null;
 let userRole = 'user'; // 'admin' or 'user'
 
-// Admin emails — add your email here to get admin access
+// Admin emails ΓÇö add your email here to get admin access
 const ADMIN_EMAILS = ['admin@carbonclarify.com', 'poutchop@gmail.com'];
 
 if (SUPABASE_URL && SUPABASE_KEY && window.supabase) {
   supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 }
 
-// ══ FALLBACK DATA (used when Supabase is unreachable) ═══════════
+// ΓòÉΓòÉ FALLBACK DATA (used when Supabase is unreachable) ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 var feedData = [];
 var lbData = [];
 var nutritionRows = [];
@@ -59,76 +59,59 @@ function demoScan() {
   }, 1200);
 }
 
-// ══ PARTICIPANT STORY ═══════════════════════════════════════════
-async function loadParticipantStory(topP) {
+// ΓòÉΓòÉ PARTICIPANT STORY ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+async function loadParticipantStory() {
   var body = document.getElementById('participant-story-body');
   if (!body) return;
 
-  // Use pre-loaded participant if available, else fetch
-  var p = topP;
-  
-  if (!p && supabase) {
-    try {
-      var res = await supabase.from('participants').select('*').order('total_points', { ascending: false }).limit(1);
-      if (res.data && res.data.length > 0) p = res.data[0];
-    } catch (e) { console.error('P-Story fetch error:', e); }
-  }
-
-  // Fallback to demo data if still no participant
-  if (!p) {
-    p = { name: 'Dada Abrefa', site: 'Berekuso Farm A', board: '014', total_points: 142 };
+  if (!supabase) {
+    body.innerHTML = '<div style="font-size:12px;color:var(--muted);">Supabase not connected. Offline mode.</div>';
+    return;
   }
 
   try {
+    // Fetch the top participant
+    var res = await supabase.from('participants').select('*').order('total_points', { ascending: false }).limit(1);
+    if (!res.data || res.data.length === 0) throw new Error('No participant data');
+    var p = res.data[0];
+
+    // Fetch total CO2 for this participant
+    var co2Res = await supabase.from('scans').select('co2_avoided_kg').eq('participant_id', p.id).eq('status', 'hardened');
     var totalCO2 = 0;
-    // Only fetch CO2 if we have a real participant ID and supabase
-    if (p.id && supabase) {
-      var co2Res = await supabase.from('scans')
-        .select('co2_avoided_kg')
-        .eq('participant_id', p.id)
-        .eq('status', 'hardened');
-      if (co2Res.data) {
-        totalCO2 = co2Res.data.reduce(function(sum, row) { return sum + (parseFloat(row.co2_avoided_kg) || 0); }, 0);
-      }
-    } else {
-      // Fallback/Simulated CO2
-      totalCO2 = (p.total_points || 0) * 0.8;
+    if (co2Res.data) {
+      totalCO2 = co2Res.data.reduce(function(sum, row) { return sum + (parseFloat(row.co2_avoided_kg) || 0); }, 0);
     }
 
     body.innerHTML = `
-      <div class="story-avatar" style="width:72px;height:72px;border-radius:50%;background:var(--gdim);border:3px solid var(--green);margin:0 auto 16px;display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--green);font-weight:800;box-shadow:0 0 20px rgba(16,217,126,0.2);">
+      <div style="width:64px;height:64px;border-radius:50%;background:var(--gdim);border:2px solid var(--green);margin:0 auto 16px;display:flex;align-items:center;justify-content:center;font-size:24px;color:var(--green);font-weight:800;">
         ${(p.name || 'U').charAt(0)}
       </div>
-      <div style="font-size:20px;font-weight:800;margin-bottom:4px;color:var(--fg);">${p.name}</div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:24px;">${p.site} · Board #${p.board || '---'}</div>
+      <div style="font-size:18px;font-weight:800;margin-bottom:4px;">${p.name}</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:20px;">${p.site} ┬╖ Board #${p.board}</div>
       
-      <div style="display:flex;justify-content:center;gap:16px;margin-bottom:24px;">
-        <div style="background:var(--surf2);padding:12px 20px;border-radius:14px;text-align:center;border:1px solid var(--border);flex:1;">
-          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Total Points</div>
-          <div style="font-size:22px;font-weight:800;color:var(--gold);">${p.total_points || 0}</div>
+      <div style="display:flex;justify-content:center;gap:12px;margin-bottom:24px;">
+        <div style="background:var(--surf2);padding:10px 16px;border-radius:10px;text-align:center;">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;">Total Points</div>
+          <div style="font-size:18px;font-weight:800;color:var(--gold);">${p.total_points}</div>
         </div>
-        <div class="admin-only" style="background:var(--surf2);padding:12px 20px;border-radius:14px;text-align:center;border:1px solid var(--border);flex:1;">
-          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">CO₂ Avoided</div>
-          <div style="font-size:22px;font-weight:800;color:var(--green);">${totalCO2.toFixed(1)} <span style="font-size:12px;font-weight:400;">kg</span></div>
+        <div style="background:var(--surf2);padding:10px 16px;border-radius:10px;text-align:center;">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;">COΓéé Avoided</div>
+          <div style="font-size:18px;font-weight:800;color:var(--green);">${totalCO2.toFixed(1)} kg</div>
         </div>
       </div>
       
-      <div style="position:relative;padding:20px;background:rgba(255,255,255,0.03);border-radius:16px;border:1px solid var(--border);text-align:left;">
-        <div style="position:absolute;top:-10px;left:20px;background:var(--green);color:#111;font-size:9px;font-weight:800;padding:2px 8px;border-radius:6px;text-transform:uppercase;">Climate Champion</div>
-        <p style="font-size:13px;line-height:1.6;color:var(--text);margin:0;">
-          By consistently avoiding firewood and utilizing solar drying techniques, <b>${p.name}</b> has emerged as a climate champion in the ${p.site} community. Her verified actions have directly contributed to cleaner air and local reforestation efforts.
-        </p>
-      </div>
+      <p style="font-size:13px;line-height:1.6;color:var(--text);background:rgba(255,255,255,0.03);padding:16px;border-radius:12px;border:1px solid var(--border);">
+        By consistently avoiding firewood and utilizing solar drying techniques, <b>${p.name}</b> has emerged as a climate champion in the ${p.site} community. Her verified actions have directly contributed to cleaner air and local reforestation efforts, earning her automated MoMo payouts.
+      </p>
     `;
 
   } catch (e) {
     console.error('Participant story error:', e);
-    body.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:20px;">Failed to load participant story.</div>';
+    body.innerHTML = '<div style="font-size:12px;color:var(--muted);">Failed to load participant story.</div>';
   }
 }
 
-
-// ══ INIT ════════════════════════════════════════════════════════
+// ΓòÉΓòÉ INIT ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 document.addEventListener('DOMContentLoaded', function() {
   loadTheme();
   initSparklines();
@@ -147,17 +130,17 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 
-// ══ LOADING / ERROR HELPERS ══════════════════════════════════════
+// ΓòÉΓòÉ LOADING / ERROR HELPERS ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 function showLoading(elId) {
   var el = document.getElementById(elId);
-  if (el) el.innerHTML = '<div style="text-align:center;padding:30px;"><div class="spinner"></div><div style="font-size:11px;color:var(--muted);margin-top:8px;">Loading…</div></div>';
+  if (el) el.innerHTML = '<div style="text-align:center;padding:30px;"><div class="spinner"></div><div style="font-size:11px;color:var(--muted);margin-top:8px;">LoadingΓÇª</div></div>';
 }
 function showError(elId, msg) {
   var el = document.getElementById(elId);
-  if (el) el.innerHTML = '<div style="text-align:center;padding:30px;"><div style="font-size:24px;margin-bottom:6px;">⚠️</div><div style="font-size:12px;color:var(--amber);">' + msg + '</div><button class="run-btn" style="margin-top:10px;" onclick="loadAllData()">↻ Retry</button></div>';
+  if (el) el.innerHTML = '<div style="text-align:center;padding:30px;"><div style="font-size:24px;margin-bottom:6px;">ΓÜá∩╕Å</div><div style="font-size:12px;color:var(--amber);">' + msg + '</div><button class="run-btn" style="margin-top:10px;" onclick="loadAllData()">Γå╗ Retry</button></div>';
 }
 
-// ══ LIVE DATA LOADING FROM SUPABASE ══════════════════════════════
+// ΓòÉΓòÉ LIVE DATA LOADING FROM SUPABASE ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 async function loadAllData() {
   if (!supabase) {
     feedData = FALLBACK_FEED.slice();
@@ -165,7 +148,6 @@ async function loadAllData() {
     nutritionRows = FALLBACK_NUTRITION.slice();
     scanCount = feedData.length;
     renderAll();
-    loadParticipantStory(null);
     return;
   }
 
@@ -179,10 +161,10 @@ async function loadAllData() {
   while (attempts < maxAttempts) {
     try {
       attempts++;
-      // #2 — Live metric cards from Supabase
+      // #2 ΓÇö Live metric cards from Supabase
       var [scansRes, participantsRes, nutritionRes] = await Promise.all([
         supabase.from('scans').select('*').order('created_at', { ascending: false }).limit(100),
-        supabase.from('participants').select('*').order('total_points', { ascending: false }).limit(100),
+        supabase.from('participants').select('*').order('total_points', { ascending: false }),
         supabase.from('nutrition_logs').select('*').order('created_at', { ascending: false }).limit(50)
       ]);
 
@@ -202,7 +184,7 @@ async function loadAllData() {
     }
     scanCount = feedData.length;
 
-    // #6 — Live leaderboard from participants table
+    // #6 ΓÇö Live leaderboard from participants table
     if (participantsRes.data && participantsRes.data.length > 0) {
       var maxPts = participantsRes.data[0].total_points || 1;
       lbData = participantsRes.data.map(function(p, i) {
@@ -217,7 +199,7 @@ async function loadAllData() {
       lbData = FALLBACK_LB.slice();
     }
 
-    // #4 — Live nutrition from nutrition_logs table
+    // #4 ΓÇö Live nutrition from nutrition_logs table
     if (nutritionRes.data && nutritionRes.data.length > 0) {
       nutritionRows = nutritionRes.data.map(function(n) {
         return {
@@ -232,10 +214,10 @@ async function loadAllData() {
 
     dataLoaded = true;
     updateMetricCards();
-    loadParticipantStory(participantsRes.data ? participantsRes.data[0] : null);
+    loadParticipantStory();
     renderAll();
 
-    // #3 — Subscribe to Supabase Realtime
+    // #3 ΓÇö Subscribe to Supabase Realtime
     subscribeRealtime();
 
       break; // Successfully loaded
@@ -250,8 +232,7 @@ async function loadAllData() {
         nutritionRows = FALLBACK_NUTRITION.slice();
         scanCount = feedData.length;
         renderAll();
-        loadParticipantStory(null);
-        showToast('Using offline data — Supabase unreachable', 'warning');
+        showToast('Using offline data ΓÇö Supabase unreachable', 'warning');
       }
     }
   }
@@ -261,12 +242,11 @@ function renderAll() {
   renderFeed();
   renderLeaderboard();
   renderNutrition();
-  plotScans();
   initCounters();
   initSparklines();
 }
 
-// #2 — Update metric cards with live Supabase data
+// #2 ΓÇö Update metric cards with live Supabase data
 async function updateMetricCards() {
   if (!supabase) {
     // Fallback if no supabase
@@ -318,7 +298,7 @@ async function updateMetricCards() {
   }
 }
 
-// #3 — Supabase Realtime subscription
+// #3 ΓÇö Supabase Realtime subscription
 function subscribeRealtime() {
   if (!supabase) return;
   supabase.channel('scans-realtime')
@@ -335,12 +315,12 @@ function subscribeRealtime() {
       scanCount++;
       renderFeed();
       updateMetricCards();
-      showToast(s.participant_name + ' — ' + (s.action || '').replace(/_/g, ' '));
+      showToast(s.participant_name + ' ΓÇö ' + (s.action || '').replace(/_/g, ' '));
     })
     .subscribe();
 }
 
-// ══ ANIMATED COUNTER ═════════════════════════════════════════════
+// ΓòÉΓòÉ ANIMATED COUNTER ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 function animateCounter(el, target, duration) {
   if (!el) return;
   var start = 0;
@@ -371,12 +351,12 @@ function initCounters() {
   }
 }
 
-// ══ TOAST SYSTEM ═════════════════════════════════════════════════
+// ΓòÉΓòÉ TOAST SYSTEM ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 function showToast(message, type) {
   type = type || 'success';
   var container = document.getElementById('toast-container');
   if (!container) return;
-  var icon = type === 'success' ? '✓' : '⚠';
+  var icon = type === 'success' ? 'Γ£ô' : 'ΓÜá';
   var toast = document.createElement('div');
   toast.className = 'toast ' + type;
   toast.innerHTML = '<span style="font-size:14px;">' + icon + '</span> ' + message;
@@ -384,7 +364,7 @@ function showToast(message, type) {
   setTimeout(function() { if (toast.parentNode) toast.remove(); }, 4000);
 }
 
-// ══ RENDER FEED ═════════════════════════════════════════════════
+// ΓòÉΓòÉ RENDER FEED ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 var feedFilter = '';
 
 function renderFeed() {
@@ -408,7 +388,7 @@ function renderFeed() {
           + ' <span class="badge ' + badgeCls + '">' + f.status + '</span>'
           + ' <span class="badge b-blue">' + action + '</span>'
         + '</div>'
-        + '<div class="feed-meta">' + f.site + ' · GPS: 5.7456°N 0.3214°W · Δt 4s</div>'
+        + '<div class="feed-meta">' + f.site + ' ┬╖ GPS: 5.7456┬░N 0.3214┬░W ┬╖ ╬öt 4s</div>'
         + '<div class="feed-factors">'
           + '<div class="ff" style="background:' + (f.status !== 'rejected' ? 'var(--green)' : 'var(--red)') + ';" title="QR"></div>'
           + '<div class="ff" style="background:' + (f.status === 'hardened' ? 'var(--green)' : f.status === 'flagged' ? 'var(--amber)' : 'var(--red)') + ';" title="GPS"></div>'
@@ -420,7 +400,7 @@ function renderFeed() {
   }).join('');
 }
 
-// ══ RENDER LEADERBOARD ══════════════════════════════════════════
+// ΓòÉΓòÉ RENDER LEADERBOARD ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 function renderLeaderboard() {
   var el = document.getElementById('lb-list');
   if (!el) return;
@@ -435,15 +415,15 @@ function renderLeaderboard() {
         + '<div class="s">' + p.site + '</div>'
         + '<div class="lb-bar-track"><div class="lb-bar-fill" style="width:' + p.pct + '%"></div></div>'
       + '</div>'
-      + '<div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:4px;">'
-        + '<div class="lb-pts">' + p.pts + ' <span style="font-size:10px;color:var(--muted);font-weight:400;">pts</span></div>'
-        + (userRole === 'admin' ? '<button class="run-btn" style="padding:4px 8px;font-size:9px;white-space:nowrap;" onclick="generateBoardPdf(\'' + p.id + '\')">🖨 Print Board</button>' : '')
+      + '<div style="text-align:right;">'
+        + '<div class="lb-pts">' + p.pts + '</div>'
+        + '<div style="font-size:10px;color:var(--muted);">pts</div>'
       + '</div>'
     + '</div>';
   }).join('');
 }
 
-// ══ RENDER NUTRITION TABLE ═══════════════════════════════════════
+// ΓòÉΓòÉ RENDER NUTRITION TABLE ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 function renderNutrition() {
   var tbody = document.getElementById('nutrition-body');
   if (!tbody) return;
@@ -462,7 +442,7 @@ function renderNutrition() {
   }).join('');
 }
 
-// ══ CHARTS ═══════════════════════════════════════════════════════
+// ΓòÉΓòÉ CHARTS ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 var chartDefaults = {
   responsive: true, maintainAspectRatio: false,
   plugins: { legend: { labels: { color: '#8b8fa8', font: { size: 11, family: 'Inter' }, boxWidth: 10 } } },
@@ -481,7 +461,7 @@ function initCharts() {
       data: {
         labels: weeks,
         datasets: [
-          { label: 'CO₂ avoided (kg)', data: [210, 285, 320, 410, 388, 447, 520], backgroundColor: 'rgba(16,217,126,0.75)', borderRadius: 6, borderSkipped: false },
+          { label: 'COΓéé avoided (kg)', data: [210, 285, 320, 410, 388, 447, 520], backgroundColor: 'rgba(16,217,126,0.75)', borderRadius: 6, borderSkipped: false },
           { label: 'Baseline', data: [180, 180, 180, 180, 180, 180, 180], backgroundColor: 'rgba(244,161,52,0.4)', borderRadius: 6, borderSkipped: false },
         ]
       },
@@ -534,7 +514,7 @@ function initCharts() {
     nutritionChart.update();
   }
 
-  // Doughnut — scan status breakdown
+  // Doughnut ΓÇö scan status breakdown
   if (!statusChart && document.getElementById('statusChart')) {
     statusChart = new Chart(document.getElementById('statusChart'), {
       type: 'doughnut',
@@ -558,12 +538,12 @@ function initCharts() {
     });
   }
 
-  // Radar — site comparison
+  // Radar ΓÇö site comparison
   if (!radarChart && document.getElementById('radarChart')) {
     radarChart = new Chart(document.getElementById('radarChart'), {
       type: 'radar',
       data: {
-        labels: ['CO₂ Saved', 'Scans', 'Nutrition', 'Participation', 'Consistency'],
+        labels: ['COΓéé Saved', 'Scans', 'Nutrition', 'Participation', 'Consistency'],
         datasets: [
           { label: 'Farm A', data: [90, 85, 82, 95, 88], borderColor: 'rgba(16,217,126,0.8)', backgroundColor: 'rgba(16,217,126,0.1)', borderWidth: 2, pointRadius: 3 },
           { label: 'Farm B', data: [75, 70, 74, 80, 72], borderColor: 'rgba(77,159,255,0.8)', backgroundColor: 'rgba(77,159,255,0.1)', borderWidth: 2, pointRadius: 3 },
@@ -586,7 +566,7 @@ function initCharts() {
   }
 }
 
-// ══ SPARKLINES ═══════════════════════════════════════════════════
+// ΓòÉΓòÉ SPARKLINES ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 function drawSparkline(canvasId, data, color) {
   var canvas = document.getElementById(canvasId);
   if (!canvas) return;
@@ -635,66 +615,43 @@ function initSparklines() {
   }, 600);
 }
 
-async function loadPendingUsers() {
-  if (!supabase || userRole !== 'admin') return;
-  const { data, error } = await supabase.from('pending_users').select('*').eq('status', 'pending').order('created_at', { ascending: false });
-  if (error) return console.error('Pending users error:', error);
-
-  const tbody = document.getElementById('pending-users-body');
-  if (!tbody) return;
-  tbody.innerHTML = '';
-  
-  if (data.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--muted);">No pending requests</td></tr>';
-    return;
+// ΓòÉΓòÉ VERIFIER ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+function updateVerifier() {
+  var gpsFail = document.getElementById('gps-fail-cb').checked;
+  var vf2 = document.getElementById('vf2');
+  var vf2val = document.getElementById('vf2-val');
+  var verdict = document.getElementById('verdict');
+  if (gpsFail) {
+    vf2.className = 'factor-row fail';
+    vf2val.style.color = 'var(--red)';
+    vf2val.textContent = 'Γ£ù 4,823 m ΓÇö outside 200 m fence';
+    verdict.className = 'verdict fail';
+    verdict.innerHTML = '<div style="font-size:12px;font-weight:700;color:var(--amber);">FLAGGED ΓÇö Payout blocked</div><div style="font-size:10px;color:var(--muted);margin-top:3px;">GPS outside geofence ┬╖ flagged for Queen Mother review</div>';
+  } else {
+    vf2.className = 'factor-row ok';
+    vf2val.style.color = 'var(--green)';
+    vf2val.textContent = 'Γ£ô 84 m from centroid';
+    verdict.className = 'verdict ok';
+    verdict.innerHTML = '<div style="font-size:12px;font-weight:700;color:var(--green);">HARDENED ΓÇö Payout queued</div><div style="font-size:10px;color:var(--muted);margin-top:3px;">scan_id: scn_8af4b ┬╖ GHS 0.25 ΓåÆ MTN ****7731</div>';
   }
-
-  data.forEach(user => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${user.name}</td>
-      <td>${user.email}</td>
-      <td>${new Date(user.created_at).toLocaleDateString()}</td>
-      <td>
-        <div style="display:flex;gap:8px;">
-          <button class="run-btn" style="padding:4px 8px;font-size:10px;background:var(--green);color:#111;border:none;" onclick="approveUser('${user.id}', '${user.email}')">Approve</button>
-          <button class="run-btn" style="padding:4px 8px;font-size:10px;background:var(--red);color:#fff;border:none;" onclick="rejectUser('${user.id}')">Reject</button>
-        </div>
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
 }
 
-async function approveUser(id, email) {
-  if (!confirm('Approve access for ' + email + '?')) return;
-  try {
-    if (supabase) {
-      const { data, error } = await supabase.functions.invoke('approve-user', {
-        body: { id, email }
-      });
-      if (error) throw error;
-      showToast('User approved and invited: ' + email, 'success');
-    } else {
-      showToast('Demo mode: User approved (local only)', 'success');
-    }
-    loadPendingUsers();
-  } catch (e) { showToast(e.message, 'warning'); }
+function runVerifier() {
+  var btn = document.querySelector('.run-btn');
+  btn.textContent = 'VerifyingΓÇª';
+  btn.disabled = true;
+  setTimeout(function() {
+    updateVerifier();
+    btn.textContent = 'Run verification ΓåÆ';
+    btn.disabled = false;
+    showToast('Verification complete');
+  }, 900);
 }
 
-async function rejectUser(id) {
-  if (!confirm('Reject this request?')) return;
-  try {
-    const { error } = await supabase.from('pending_users').update({ status: 'rejected' }).eq('id', id);
-    if (error) throw error;
-    showToast('Request rejected', 'warning');
-    loadPendingUsers();
-  } catch (e) { showToast(e.message, 'warning'); }
-}
 
-// ══ EXCEL EXPORT — 4-sheet workbook for Main Portal/GAC ══════════════
+// ΓòÉΓòÉ EXCEL EXPORT ΓÇö 4-sheet workbook for Provost/GAC ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 async function exportExcel() {
-  showToast('Generating Excel report…');
+  showToast('Generating Excel reportΓÇª');
 
   // Fetch live data from Supabase if available
   var scansData = feedData;
@@ -713,7 +670,7 @@ async function exportExcel() {
   }
 
   // Sheet 1: Scans Audit Log
-  var sheet1 = [['Date', 'Time', 'Participant', 'Board', 'Site', 'Action', 'Status', 'GPS Lat', 'GPS Lng', 'GPS Distance (m)', 'QR Valid', 'CO₂ Avoided (kg)', 'Points']];
+  var sheet1 = [['Date', 'Time', 'Participant', 'Board', 'Site', 'Action', 'Status', 'GPS Lat', 'GPS Lng', 'GPS Distance (m)', 'QR Valid', 'COΓéé Avoided (kg)', 'Points']];
   scansData.forEach(function(s) {
     var dt = s.created_at ? new Date(s.created_at) : new Date();
     sheet1.push([
@@ -746,16 +703,16 @@ async function exportExcel() {
   var totalPoints = participantsData.reduce(function(sum, p) { return sum + (p.total_points || p.pts || 0); }, 0);
 
   var sheet4 = [
-    ['Carbon Clarity Data Vault — Weekly Report'],
+    ['Carbon Clarity Data Vault ΓÇö Weekly Report'],
     ['Generated', new Date().toISOString()],
-    ['Pilot', 'Berekuso · Ashesi University · Week 4'],
+    ['Pilot', 'Berekuso ┬╖ Ashesi University ┬╖ Week 4'],
     [''],
     ['METRIC', 'VALUE'],
     ['Total Scans', totalScans],
     ['Hardened', hardened],
     ['Flagged', flagged],
     ['Verification Rate', totalScans > 0 ? Math.round(hardened / totalScans * 100) + '%' : 'N/A'],
-    ['CO₂ Avoided (kg)', totalCO2.toFixed(1)],
+    ['COΓéé Avoided (kg)', totalCO2.toFixed(1)],
     ['Active Participants', participantsData.length],
     ['Total Points Issued', totalPoints],
     [''],
@@ -795,10 +752,10 @@ async function exportExcel() {
   a.download = 'CarbonClarity_DataVault_' + today + '.xls';
   a.click();
   URL.revokeObjectURL(a.href);
-  showToast('✅ Excel report downloaded — 4 sheets');
+  showToast('Γ£à Excel report downloaded ΓÇö 4 sheets');
 }
 
-// ══ MAP VIEW — Leaflet with geofences ════════════════════════════
+// ΓòÉΓòÉ MAP VIEW ΓÇö Leaflet with geofences ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 var scanMap = null;
 var mapMarkers = [];
 
@@ -827,7 +784,7 @@ function initMap() {
 
   // Dark tile layer
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    attribution: '© OpenStreetMap © CARTO',
+    attribution: '┬⌐ OpenStreetMap ┬⌐ CARTO',
     maxZoom: 19
   }).addTo(scanMap);
 
@@ -888,9 +845,9 @@ function plotScans() {
       weight: 1
     }).bindPopup(
       '<b>' + scan.name + '</b> #' + scan.board + '<br>' +
-      '<span style="color:' + markerColor + ';">' + scan.status + '</span> · ' +
+      '<span style="color:' + markerColor + ';">' + scan.status + '</span> ┬╖ ' +
       (scan.action || '').replace(/_/g, ' ') + '<br>' +
-      scan.site + ' · ' + (scan.time || '')
+      scan.site + ' ┬╖ ' + (scan.time || '')
     );
     marker.addTo(scanMap);
     mapMarkers.push(marker);
@@ -907,8 +864,8 @@ function plotScans() {
   if (cw) cw.textContent = counts['Co-op W'];
 }
 
-// ══ TABS ═════════════════════════════════════════════════════════
-var panels = ['impact', 'feed', 'analytics', 'leaderboard', 'map', 'main', 'scanner'];
+// ΓòÉΓòÉ TABS ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+var panels = ['impact', 'feed', 'analytics', 'leaderboard', 'map', 'provost', 'scanner'];
 function setTab(id, el) {
   function switchTab() {
     panels.forEach(function(p) {
@@ -917,7 +874,7 @@ function setTab(id, el) {
     });
     document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
     el.classList.add('active');
-    if (id === 'analytics' || id === 'main') setTimeout(initCharts, 80);
+    if (id === 'analytics' || id === 'provost') setTimeout(initCharts, 80);
     if (id === 'map') setTimeout(initMap, 100);
   }
 
@@ -928,7 +885,7 @@ function setTab(id, el) {
   }
 }
 
-// ══ THEME ════════════════════════════════════════════════════════
+// ΓòÉΓòÉ THEME ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 function toggleTheme() {
   document.body.classList.toggle('light');
   var isLight = document.body.classList.contains('light');
@@ -941,7 +898,7 @@ function loadTheme() {
   if (saved === 'light') document.body.classList.add('light');
 }
 
-// ══ AUTH WALL — blocks all content until login ═══════════════════
+// ΓòÉΓòÉ AUTH WALL ΓÇö blocks all content until login ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 function showAuth() {
   var m = document.getElementById('auth-modal');
   if (m) m.classList.add('active');
@@ -951,80 +908,43 @@ function hideAuth() {
   if (m) m.classList.remove('active');
 }
 function toggleAuthMode() {
-  var signin = document.getElementById('auth-signin-form');
-  var request = document.getElementById('auth-request-form');
-  if (signin.style.display !== 'none') {
-    signin.style.display = 'none';
-    request.style.display = 'block';
+  var title = document.getElementById('auth-title');
+  var btn = document.getElementById('auth-submit');
+  var toggle = document.getElementById('auth-toggle-text');
+  if (title.textContent === 'Sign In') {
+    title.textContent = 'Create Account';
+    btn.textContent = 'Sign Up';
+    toggle.innerHTML = 'Already have an account? <a onclick="toggleAuthMode()">Sign in</a>';
   } else {
-    signin.style.display = 'block';
-    request.style.display = 'none';
+    title.textContent = 'Sign In';
+    btn.textContent = 'Sign In';
+    toggle.innerHTML = 'Need an account? <a onclick="toggleAuthMode()">Sign up</a>';
   }
 }
 
-let failedAttempts = 0;
-let lockoutUntil = 0;
-
-function checkPassStrength(val) {
-  const meter = document.getElementById('strength-meter');
-  const bar = document.getElementById('strength-bar');
-  if (!val) { meter.style.display = 'none'; return; }
-  meter.style.display = 'block';
-  
-  let score = 0;
-  if (val.length > 8) score++;
-  if (/[A-Z]/.test(val)) score++;
-  if (/[0-9]/.test(val)) score++;
-  if (/[^A-Za-z0-9]/.test(val)) score++;
-
-  bar.className = 'strength-bar';
-  if (score < 2) bar.classList.add('strength-weak');
-  else if (score < 4) bar.classList.add('strength-medium');
-  else bar.classList.add('strength-strong');
-}
-
-function showSignIn() {
-  document.getElementById('auth-signin-form').style.display = 'block';
-  document.getElementById('auth-request-form').style.display = 'none';
-}
-
-function showRequestAccess() {
-  document.getElementById('auth-signin-form').style.display = 'none';
-  document.getElementById('auth-request-form').style.display = 'block';
-}
-
-async function handleSignIn() {
-  const now = Date.now();
-  if (now < lockoutUntil) {
-    showToast('Account locked. Please wait.', 'warning');
-    return;
-  }
-
+async function handleAuth() {
   var email = document.getElementById('auth-email').value;
   var pass = document.getElementById('auth-pass').value;
   if (!email || !pass) return showToast('Please fill all fields', 'warning');
 
   if (supabase) {
+    var isSignUp = document.getElementById('auth-title').textContent === 'Create Account';
     try {
-      var result = await supabase.auth.signInWithPassword({ email: email, password: pass });
+      var result;
+      if (isSignUp) {
+        result = await supabase.auth.signUp({ email: email, password: pass });
+      } else {
+        result = await supabase.auth.signInWithPassword({ email: email, password: pass });
+      }
       if (result.error) throw result.error;
-      failedAttempts = 0;
       currentUser = result.data.user;
       hideAuth();
       onLoginSuccess();
     } catch (e) {
-      failedAttempts++;
-      if (failedAttempts >= 5) {
-        lockoutUntil = Date.now() + 60000;
-        document.getElementById('login-lockout-msg').style.display = 'block';
-        setTimeout(() => {
-          document.getElementById('login-lockout-msg').style.display = 'none';
-        }, 60000);
-      }
       showToast(e.message || 'Auth error', 'warning');
     }
   } else {
-    // Demo mode
+    // Demo mode ΓÇö still requires login
     currentUser = { email: email, id: 'demo_' + Date.now() };
     localStorage.setItem('dv-user', JSON.stringify(currentUser));
     hideAuth();
@@ -1032,52 +952,12 @@ async function handleSignIn() {
   }
 }
 
-async function submitAccessRequest() {
-  var name = document.getElementById('req-name').value;
-  var email = document.getElementById('req-email').value;
-  if (!name || !email) return showToast('Please fill all fields', 'warning');
-
-  if (supabase) {
-    try {
-      var { error } = await supabase.from('pending_users').insert({
-        name: name,
-        email: email
-      });
-      if (error) {
-        if (error.code === '23505') throw new Error('You have already requested access.');
-        throw error;
-      }
-      showToast('Access request submitted. An admin will review it.', 'success');
-      showSignIn(); // Go back to sign in
-    } catch (e) {
-      showToast(e.message || 'Failed to submit request', 'warning');
-    }
-  } else {
-    showToast('Access request submitted (demo mode)', 'success');
-    showSignIn();
-  }
-}
-
 function onLoginSuccess() {
-  document.getElementById('auth-modal').classList.remove('active');
-  var roleLabel = document.getElementById('role-label');
-  roleLabel.style.display = 'inline-block';
-  roleLabel.textContent = userRole === 'admin' ? 'Admin' : 'User';
-  roleLabel.className = 'pilot-badge ' + (userRole === 'admin' ? 'b-green' : 'b-blue');
-
-  document.getElementById('auth-btn').style.display = 'none';
-  document.getElementById('user-avatar').style.display = 'flex';
-  document.getElementById('user-avatar').textContent = (currentUser.name || currentUser.email || 'U').charAt(0).toUpperCase();
-
-  if (userRole === 'admin') {
-    document.body.classList.add('admin-mode');
-  } else {
-    document.body.classList.remove('admin-mode');
-  }
-
-  showToast('Signed in as ' + (currentUser.name || currentUser.email));
+  // Check if admin
+  userRole = ADMIN_EMAILS.includes((currentUser.email || '').toLowerCase()) ? 'admin' : 'user';
+  updateAuthUI();
   unlockDashboard();
-  loadAllData();
+  showToast('Welcome, ' + (currentUser.email || 'User').split('@')[0] + '!' + (userRole === 'admin' ? ' (Admin)' : ''));
 }
 
 function unlockDashboard() {
@@ -1089,13 +969,12 @@ function unlockDashboard() {
     el.style.display = userRole === 'admin' ? '' : 'none';
   });
 
-  var adminTabs = document.querySelectorAll('[data-tab="main"],[data-tab="scanner"]');
+  var adminTabs = document.querySelectorAll('[data-tab="provost"],[data-tab="scanner"]');
   adminTabs.forEach(function(el) {
     el.style.display = userRole === 'admin' ? '' : 'none';
   });
 
   loadAllData();
-  if (userRole === 'admin') loadPendingUsers();
 }
 
 function lockDashboard() {
@@ -1138,13 +1017,13 @@ async function handleLogout() {
   showToast('Signed out');
 }
 
-// ══ FEED SEARCH ═════════════════════════════════════════════════
+// ΓòÉΓòÉ FEED SEARCH ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 function onFeedSearch(e) {
   feedFilter = e.target.value;
   renderFeed();
 }
 
-// ══ LIVE FEED SIMULATION ════════════════════════════════════════
+// ΓòÉΓòÉ LIVE FEED SIMULATION ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 var extraNames = ['Efua Darko', 'Serwa Adjei', 'Araba Quaye', 'Adwoa Mensah', 'Aba Koomson'];
 var extraActions = ['firewood_avoidance', 'nutrition_meal', 'solar_drying'];
 var scanCount = 47;
@@ -1166,10 +1045,10 @@ function addNewScan() {
   var scansEl = document.getElementById('m-scans');
   if (scansEl) scansEl.textContent = scanCount;
   if (document.getElementById('panel-feed').style.display !== 'none') renderFeed();
-  showToast(newScan.name + ' — ' + newScan.action.replace(/_/g, ' '));
+  showToast(newScan.name + ' ΓÇö ' + newScan.action.replace(/_/g, ' '));
 }
 
-// ══ INIT — Auth wall on startup ══════════════════════════════════
+// ΓòÉΓòÉ INIT ΓÇö Auth wall on startup ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 loadTheme();
 
 // Check for existing session
@@ -1206,143 +1085,3 @@ loadTheme();
 
   setInterval(addNewScan, 8000);
 })();
-
-// ══ QR GENERATOR ═══════════════════════════════════════════════════
-async function generateBoardPdf(participantId) {
-  if (!supabase) return showToast('QR Generator requires Supabase connection', 'warning');
-  showToast('Generating QR Boards...', 'success');
-  
-  try {
-    const { data, error } = await supabase.from('participants').select('*').eq('id', participantId).single();
-    if (error || !data) throw error || new Error('Participant not found');
-    
-    const p = data;
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    
-    const actions = [
-      { id: 'firewood_avoidance', label: 'Firewood Avoidance', suffix: 'A', color: [244, 161, 52] },
-      { id: 'nutrition_meal', label: 'Nutrition Meal', suffix: 'B', color: [77, 159, 255] },
-      { id: 'solar_drying', label: 'Solar Drying', suffix: 'C', color: [16, 217, 126] }
-    ];
-    
-    let qrContainer = document.getElementById('qr-gen-hidden');
-    if (!qrContainer) {
-      qrContainer = document.createElement('div');
-      qrContainer.id = 'qr-gen-hidden';
-      qrContainer.style.display = 'none';
-      document.body.appendChild(qrContainer);
-    }
-
-    for (let i = 0; i < actions.length; i++) {
-      if (i > 0) doc.addPage();
-      const action = actions[i];
-      const boardId = (p.board || '000') + action.suffix;
-      
-      const issuedAt = Math.floor(Date.now() / 1000);
-      const payloadBase = `CC-v1|${boardId}|${p.id}|${action.id}|${issuedAt}`;
-      const demoHmac = 'demo_hmac_' + boardId;
-      const fullPayload = `${payloadBase}|${demoHmac}`;
-      
-      qrContainer.innerHTML = '';
-      const qrcode = new QRCode(qrContainer, {
-        text: fullPayload,
-        width: 200,
-        height: 200,
-        colorDark : "#000000",
-        colorLight : "#ffffff",
-        correctLevel : QRCode.CorrectLevel.H
-      });
-      
-      await new Promise(res => setTimeout(res, 100));
-      const canvas = qrContainer.querySelector('canvas');
-      const imgData = canvas.toDataURL('image/png');
-      
-      doc.setFontSize(22);
-      doc.setTextColor(16, 217, 126);
-      doc.text('Carbon Clarity', 105, 30, null, null, 'center');
-      
-      doc.setFontSize(16);
-      doc.setTextColor(0, 0, 0);
-      doc.text(`Participant: ${p.name}`, 105, 50, null, null, 'center');
-      doc.text(`Site: ${p.site}`, 105, 60, null, null, 'center');
-      doc.text(`Board: #${boardId}`, 105, 70, null, null, 'center');
-      
-      doc.setFontSize(18);
-      doc.setTextColor(action.color[0], action.color[1], action.color[2]);
-      doc.text(`Action: ${action.label}`, 105, 90, null, null, 'center');
-      
-      doc.addImage(imgData, 'PNG', 55, 110, 100, 100);
-      
-      doc.setFontSize(10);
-      doc.setTextColor(100, 100, 100);
-      doc.text('Scan with the Field App to verify action.', 105, 230, null, null, 'center');
-      doc.text('Pilot Phase 1 · Do not duplicate.', 105, 240, null, null, 'center');
-    }
-    
-    doc.save(`CarbonClarity_Boards_${p.name.replace(/\s+/g, '_')}.pdf`);
-    showToast('Boards downloaded successfully', 'success');
-    
-  } catch (err) {
-    console.error(err);
-    showToast('Error generating boards: ' + err.message, 'warning');
-  }
-}
-
-// ══ VERIFIER PANEL ═══════════════════════════════════════════════
-async function runVerifier() {
-  const btn = document.querySelector('button[onclick="runVerifier()"]');
-  if (btn) btn.disabled = true;
-  
-  const payload = {
-    qr_payload: 'CC-v1|014|032|firewood_avoidance|1745000000|hmac',
-    gps_lat: document.getElementById('gps-fail-cb').checked ? 5.8000 : 5.7456,
-    gps_lng: -0.3214,
-    site: 'Farm A'
-  };
-
-  try {
-    if (supabase) {
-      const { data, error } = await supabase.functions.invoke('verify-scan', {
-        body: payload
-      });
-      if (error) throw error;
-      
-      showToast('Verification completed via Edge Function');
-      console.log('Verify Response:', data);
-      
-      const verdict = document.getElementById('verdict');
-      if (data.status === 'hardened') {
-        verdict.className = 'verdict ok';
-        verdict.innerHTML = `<div style="font-size:12px;font-weight:700;color:var(--green);">HARDENED — Payout queued</div>
-                             <div style="font-size:10px;color:var(--muted);margin-top:3px;">points awarded: ${data.points_awarded || 3}</div>`;
-      } else {
-        verdict.className = 'verdict fail';
-        verdict.innerHTML = `<div style="font-size:12px;font-weight:700;color:var(--red);">REJECTED — ${data.reason || 'Verification failed'}</div>`;
-      }
-    } else {
-      showToast('Demo Mode: Verification simulated');
-    }
-  } catch(e) {
-    console.error(e);
-    showToast('Failed to call Edge Function: ' + e.message, 'warning');
-  } finally {
-    if (btn) btn.disabled = false;
-  }
-}
-
-function updateVerifier() {
-  const isFail = document.getElementById('gps-fail-cb').checked;
-  const vf2Val = document.getElementById('vf2-val');
-  if (vf2Val) {
-    if (isFail) {
-      vf2Val.style.color = 'var(--red)';
-      vf2Val.textContent = '✗ 6,240 m from centroid';
-      document.getElementById('vf2').className = 'factor-row fail';
-    } else {
-      vf2Val.style.color = 'var(--green)';
-      vf2Val.textContent = '✓ 84 m from centroid';
-      document.getElementById('vf2').className = 'factor-row ok';
-    }
-  }
-}

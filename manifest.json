@@ -2,15 +2,15 @@
   "name": "Data Vault — Carbon Clarity",
   "short_name": "Data Vault",
   "description": "dMRV field scanner for Carbon Clarity pilot",
-  "start_url": "/Data-Home/",
-  "scope": "/Data-Home/",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#0f1117",
   "theme_color": "#10d97e",
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/Data-Home/icon.svg",
+      "src": "icon.svg",
       "sizes": "192x192 512x512",
       "type": "image/svg+xml",
       "purpose": "any maskable"
