@@ -941,22 +941,15 @@ function plotScans() {
 // ══ TABS ═════════════════════════════════════════════════════════
 var panels = ['impact', 'feed', 'analytics', 'leaderboard', 'map', 'main', 'scanner'];
 function setTab(id, el) {
-  function switchTab() {
-    panels.forEach(function(p) {
-      var panel = document.getElementById('panel-' + p);
-      if (panel) panel.style.display = p === id ? '' : 'none';
-    });
-    document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
-    el.classList.add('active');
-    if (id === 'analytics' || id === 'main') setTimeout(initCharts, 80);
-    if (id === 'map') setTimeout(initMap, 100);
-  }
-
-  if (document.startViewTransition) {
-    document.startViewTransition(switchTab);
-  } else {
-    switchTab();
-  }
+  panels.forEach(function(p) {
+    var panel = document.getElementById('panel-' + p);
+    if (panel) panel.style.display = (p === id) ? 'block' : 'none';
+  });
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+  if (el) el.classList.add('active');
+  
+  if (id === 'analytics' || id === 'main') setTimeout(initCharts, 80);
+  if (id === 'map') setTimeout(initMap, 100);
 }
 
 // ══ THEME ════════════════════════════════════════════════════════
@@ -1137,7 +1130,6 @@ function lockDashboard() {
   if (impactTab) setTab('impact', impactTab);
   
   loadAllData(); // Load public data for Impact Wall
-  showAuth();
 }
 
 function updateAuthUI() {
