@@ -131,9 +131,15 @@ async function loadParticipantStory(topP) {
 
 
 document.addEventListener('DOMContentLoaded', function() {
-  loadTheme();
-  initSparklines();
-  updateAuthUI();
+  console.log('DOM Content Loaded');
+  try {
+    loadTheme();
+    initSparklines();
+    updateAuthUI();
+  } catch (e) {
+    console.error('Initial component load error:', e);
+  }
+
   // We let the user explore the Impact Wall by default.
   var savedUser = localStorage.getItem('dv-user');
   if (savedUser) {
@@ -141,12 +147,21 @@ document.addEventListener('DOMContentLoaded', function() {
       currentUser = JSON.parse(savedUser);
       onLoginSuccess();
     } catch(e) {
+      console.warn('Session restore failed:', e);
       lockDashboard();
     }
   } else {
     lockDashboard();
   }
 });
+
+// Global error handler for field debugging
+window.onerror = function(msg, url, line, col, error) {
+  console.error('GLOBAL ERROR:', msg, 'at', line, ':', col);
+  // Optional: show a small toast for critical errors
+  if (typeof showToast === 'function') showToast('App error: ' + msg, 'error');
+  return false;
+};
 
 // ══ LOADING / ERROR HELPERS ══════════════════════════════════════
 function showLoading(elId) {
@@ -1010,6 +1025,7 @@ function showRequestAccess() {
 }
 
 async function handleAuth() {
+  console.log('handleAuth execution started');
   const now = Date.now();
   if (now < lockoutUntil) {
     showToast('Account locked. Please wait.', 'warning');
