@@ -631,8 +631,39 @@
   <span style="color:rgba(255,255,255,.25);">Built by Pout Chop Jal Madeng · Mastercard Foundation Scholar</span>
 </div>
 
+<!-- Vault AI Assistant -->
+<div class="ai-fab" id="ai-fab" onclick="toggleAIChat()">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+</div>
+
+<div class="ai-chat" id="ai-chat">
+  <div class="ai-header">
+    <div class="logo-mark" style="width:24px;height:24px;border-radius:6px;">
+      <svg viewBox="0 0 14 14" fill="none"><path d="M7 1L12 10H7L2L7 1Z" fill="#10d97e"/></svg>
+    </div>
+    <div class="ai-title">Vault Assistant</div>
+    <div class="ai-close" onclick="toggleAIChat()">✕</div>
+  </div>
+  <div class="ai-body" id="ai-body">
+    <div class="ai-msg bot">
+      Hi there! I'm your Vault Assistant. How can I help you today?
+    </div>
+  </div>
+  <div class="ai-footer">
+    <div class="ai-suggest" id="ai-suggest">
+      <div class="ai-chip" onclick="handleAISuggest('What is dMRV?')">What is dMRV?</div>
+      <div class="ai-chip" onclick="handleAISuggest('How do I scan?')">How do I scan?</div>
+      <div class="ai-chip" onclick="handleAISuggest('When are payouts?')">When are payouts?</div>
+    </div>
+    <div class="ai-input-wrap">
+      <input type="text" class="ai-input" id="ai-input" placeholder="Ask me anything..." onkeypress="if(event.key==='Enter') sendAIMessage()"/>
+    </div>
+  </div>
+</div>
+
 <script src="app.js"></script>
 <script src="scanner.js"></script>
+<script src="assistant.js"></script>
 <!-- Hidden QR Generator -->
 <div id="qr-gen-hidden" style="display:none;visibility:hidden;"></div>
 </body>

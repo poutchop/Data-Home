@@ -652,3 +652,140 @@ body.light::before {
   animation-duration: 0.25s;
   animation-timing-function: cubic-bezier(0.19, 1, 0.22, 1);
 }
+
+/* ── Vault AI Assistant ── */
+.ai-fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 28px;
+  background: var(--green);
+  box-shadow: 0 4px 20px rgba(16,217,126,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 400;
+  transition: var(--transition);
+  animation: bounceIn 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+.ai-fab:hover { transform: scale(1.1) rotate(5deg); }
+.ai-fab svg { width: 28px; height: 28px; color: #111; }
+
+.ai-chat {
+  position: fixed;
+  bottom: 90px;
+  right: 24px;
+  width: 320px;
+  height: 480px;
+  background: var(--surf);
+  backdrop-filter: blur(24px);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  box-shadow: 0 12px 48px rgba(0,0,0,0.5);
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 400;
+  animation: slideInUp 0.3s ease;
+}
+.ai-chat.active { display: flex; }
+
+.ai-header {
+  padding: 16px 20px;
+  background: var(--gdim);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ai-title { font-weight: 800; font-size: 14px; color: var(--green); letter-spacing: 0.5px; }
+.ai-close { margin-left: auto; cursor: pointer; color: var(--muted); padding: 4px; }
+
+.ai-body {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ai-msg {
+  max-width: 85%;
+  padding: 10px 14px;
+  border-radius: 16px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  animation: msgIn 0.3s ease;
+}
+.ai-msg.bot {
+  background: var(--surf2);
+  color: var(--text);
+  border-bottom-left-radius: 4px;
+  border: 1px solid var(--border);
+}
+.ai-msg.user {
+  align-self: flex-end;
+  background: var(--green);
+  color: #111;
+  font-weight: 600;
+  border-bottom-right-radius: 4px;
+}
+
+.ai-footer {
+  padding: 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ai-input-wrap { display: flex; gap: 8px; }
+.ai-input {
+  flex: 1;
+  background: var(--surf2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 14px;
+  color: var(--text);
+  font-size: 12.5px;
+  outline: none;
+}
+.ai-input:focus { border-color: var(--green); }
+
+.ai-suggest {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.ai-chip {
+  padding: 6px 12px;
+  background: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 11px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: var(--transition);
+}
+.ai-chip:hover { border-color: var(--green); color: var(--green); }
+
+@keyframes bounceIn {
+  from { transform: scale(0); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@keyframes slideInUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes msgIn {
+  from { transform: translateY(10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@media (max-width: 480px) {
+  .ai-chat { width: calc(100% - 48px); height: 70vh; }
+}
