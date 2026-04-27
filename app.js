@@ -1200,20 +1200,18 @@ loadTheme();
 
 // Check for existing session
 (async function initApp() {
+  console.log('initApp starting...');
   var restored = false;
-
-  // Try Supabase session first
   if (supabase) {
     try {
       var session = await supabase.auth.getSession();
-      if (session.data.session) {
+      if (session.data && session.data.session) {
         currentUser = session.data.session.user;
         restored = true;
       }
-    } catch(e) {}
+    } catch(e) { console.warn('Supabase session check failed:', e); }
   }
 
-  // Try demo session from localStorage
   if (!restored) {
     var saved = localStorage.getItem('dv-user');
     if (saved) {
@@ -1224,16 +1222,19 @@ loadTheme();
     }
   }
 
+  if (restored && currentUser) {
+    console.log('Session restored:', currentUser.email);
+    onLoginSuccess();
+  } else {
+    console.log('No session found. Locking dashboard...');
+    lockDashboard();
   }
 
   // ══ Demo Mode Automation ══
   const urlParams = new URLSearchParams(window.location.search);
   if (urlParams.get('demo') === 'true' && !currentUser) {
     console.log('Demo mode detected. Automating login...');
-    showToast('Automating Demo Login...', 'info');
-    setTimeout(() => {
-      handleAuth('poutchop@gmail.com', 'admin123');
-    }, 1200);
+    handleAuth('poutchop@gmail.com', 'admin123');
   }
 
   setInterval(addNewScan, 8000);
