@@ -113,8 +113,8 @@
   <button class="tab active" onclick="setTab('impact',this)">Impact Wall</button>
   <button class="tab secure-tab" style="display:none;" onclick="setTab('feed',this)">Hardening feed</button>
   <button class="tab secure-tab" style="display:none;" onclick="setTab('analytics',this)">Climate analytics</button>
-  <button class="tab secure-tab" style="display:none;" onclick="setTab('leaderboard',this)">Leaderboard</button>
-  <button class="tab secure-tab" style="display:none;" onclick="setTab('map',this)">🗺️ Map</button>
+  <button class="tab" onclick="setTab('leaderboard',this)">Leaderboard</button>
+  <button class="tab" onclick="setTab('map',this)">🗺️ Map</button>
   <button class="tab secure-tab" onclick="setTab('main',this)" data-tab="main" style="display:none;">Main portal</button>
   <button class="tab secure-tab" onclick="setTab('scanner',this)" data-tab="scanner" style="display:none;">📷 Scanner</button>
 </div>
@@ -146,13 +146,13 @@
         <div class="metric-sub">Triple-factor pass rate</div>
         <div class="metric-spark"><canvas id="spark-rate" style="width:100%;height:100%;"></canvas></div>
       </div>
-      <div class="metric admin-only">
+      <div class="metric">
         <div class="metric-label">CO₂ avoided (kg)</div>
         <div class="metric-value" style="color:var(--amber)" id="m-co2">0</div>
         <div class="metric-sub">Active participants</div>
         <div class="metric-spark"><canvas id="spark-co2" style="width:100%;height:100%;"></canvas></div>
       </div>
-      <div class="metric admin-only">
+      <div class="metric">
         <div class="metric-label">Payouts sent</div>
         <div class="metric-value" style="color:var(--purple)" id="m-payout">GHS 0</div>
         <div class="metric-sub">MTN &amp; Telecel MoMo</div>

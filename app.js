@@ -118,7 +118,7 @@ async function loadParticipantStory(topP) {
       <div style="position:relative;padding:20px;background:rgba(255,255,255,0.03);border-radius:16px;border:1px solid var(--border);text-align:left;">
         <div style="position:absolute;top:-10px;left:20px;background:var(--green);color:#111;font-size:9px;font-weight:800;padding:2px 8px;border-radius:6px;text-transform:uppercase;">Climate Champion</div>
         <p style="font-size:13px;line-height:1.6;color:var(--text);margin:0;">
-          By consistently avoiding firewood and utilizing solar drying techniques, <b>${p.name}</b> has emerged as a climate champion in the ${p.site} community. Her verified actions have directly contributed to cleaner air and local reforestation efforts.
+          ${p.testimonial || `By consistently avoiding firewood and utilizing solar drying techniques, <b>${p.name}</b> has emerged as a climate champion in the ${p.site} community. Her verified actions have directly contributed to cleaner air and local reforestation efforts.`}
         </p>
       </div>
     `;
@@ -1009,7 +1009,7 @@ function showRequestAccess() {
   document.getElementById('auth-request-form').style.display = 'block';
 }
 
-async function handleSignIn() {
+async function handleAuth() {
   const now = Date.now();
   if (now < lockoutUntil) {
     showToast('Account locked. Please wait.', 'warning');
