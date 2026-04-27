@@ -101,7 +101,7 @@ async function loadParticipantStory(topP) {
       <div class="story-avatar" style="width:72px;height:72px;border-radius:50%;background:var(--gdim);border:3px solid var(--green);margin:0 auto 16px;display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--green);font-weight:800;box-shadow:0 0 20px rgba(16,217,126,0.2);">
         ${(p.name || 'U').charAt(0)}
       </div>
-      <div style="font-size:20px;font-weight:800;margin-bottom:4px;color:var(--fg);">${p.name}</div>
+      <div style="font-size:20px;font-weight:800;margin-bottom:4px;color:var(--text);">${p.name}</div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:24px;">${p.site} · Board #${p.board || '---'}</div>
       
       <div style="display:flex;justify-content:center;gap:16px;margin-bottom:24px;">
@@ -130,12 +130,11 @@ async function loadParticipantStory(topP) {
 }
 
 
-// ══ INIT ════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', function() {
   loadTheme();
   initSparklines();
-  // We don't call updateAuthUI or showAuth immediately here,
-  // we let the user explore the Impact Wall.
+  updateAuthUI();
+  // We let the user explore the Impact Wall by default.
   var savedUser = localStorage.getItem('dv-user');
   if (savedUser) {
     try {
