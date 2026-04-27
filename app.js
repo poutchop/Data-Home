@@ -1017,7 +1017,7 @@ function showRequestAccess() {
   document.getElementById('auth-request-form').style.display = 'block';
 }
 
-async function handleAuth() {
+async function handleAuth(demoEmail, demoPass) {
   console.log('handleAuth execution started');
   const now = Date.now();
   if (now < lockoutUntil) {
@@ -1025,9 +1025,11 @@ async function handleAuth() {
     return;
   }
 
-  var email = document.getElementById('auth-email').value;
-  var pass = document.getElementById('auth-pass').value;
+  var email = demoEmail || document.getElementById('auth-email').value;
+  var pass = demoPass || document.getElementById('auth-pass').value;
   if (!email || !pass) return showToast('Please fill all fields', 'warning');
+  
+  showToast('Authenticating...', 'info');
 
   if (supabase) {
     try {
@@ -1222,10 +1224,16 @@ loadTheme();
     }
   }
 
-  if (restored && currentUser) {
-    onLoginSuccess();
-  } else {
-    lockDashboard();
+  }
+
+  // ══ Demo Mode Automation ══
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('demo') === 'true' && !currentUser) {
+    console.log('Demo mode detected. Automating login...');
+    showToast('Automating Demo Login...', 'info');
+    setTimeout(() => {
+      handleAuth('poutchop@gmail.com', 'admin123');
+    }, 1200);
   }
 
   setInterval(addNewScan, 8000);
