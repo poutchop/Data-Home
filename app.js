@@ -61,21 +61,18 @@ function demoScan() {
 
 // ══ PARTICIPANT STORY ═══════════════════════════════════════════
 async function loadParticipantStory(topP) {
+  console.log('loadParticipantStory called with:', topP);
   var body = document.getElementById('participant-story-body');
-  if (!body) return;
-
-  // Use pre-loaded participant if available, else fetch
-  var p = topP;
-  
-  if (!p && supabase) {
-    try {
-      var res = await supabase.from('participants').select('*').order('total_points', { ascending: false }).limit(1);
-      if (res.data && res.data.length > 0) p = res.data[0];
-    } catch (e) { console.error('P-Story fetch error:', e); }
+  if (!body) {
+    console.error('participant-story-body element not found');
+    return;
   }
 
+  var p = topP;
+  
   // Fallback to demo data if still no participant
   if (!p) {
+    console.log('No participant data provided, using fallback Dada Abrefa');
     p = { name: 'Dada Abrefa', site: 'Berekuso Farm A', board: '014', total_points: 142 };
   }
 
@@ -83,18 +80,23 @@ async function loadParticipantStory(topP) {
     var totalCO2 = 0;
     // Only fetch CO2 if we have a real participant ID and supabase
     if (p.id && supabase) {
+      console.log('Fetching CO2 for participant ID:', p.id);
       var co2Res = await supabase.from('scans')
         .select('co2_avoided_kg')
         .eq('participant_id', p.id)
         .eq('status', 'hardened');
-      if (co2Res.data) {
+      
+      if (co2Res.error) {
+        console.warn('Error fetching participant CO2:', co2Res.error);
+      } else if (co2Res.data) {
         totalCO2 = co2Res.data.reduce(function(sum, row) { return sum + (parseFloat(row.co2_avoided_kg) || 0); }, 0);
       }
     } else {
-      // Fallback/Simulated CO2
+      console.log('No participant ID or Supabase, using simulated CO2');
       totalCO2 = (p.total_points || 0) * 0.8;
     }
 
+    console.log('Rendering participant story for:', p.name);
     body.innerHTML = `
       <div class="story-avatar" style="width:72px;height:72px;border-radius:50%;background:var(--gdim);border:3px solid var(--green);margin:0 auto 16px;display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--green);font-weight:800;box-shadow:0 0 20px rgba(16,217,126,0.2);">
         ${(p.name || 'U').charAt(0)}
@@ -122,7 +124,7 @@ async function loadParticipantStory(topP) {
     `;
 
   } catch (e) {
-    console.error('Participant story error:', e);
+    console.error('Participant story render error:', e);
     body.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:20px;">Failed to load participant story.</div>';
   }
 }
@@ -159,7 +161,9 @@ function showError(elId, msg) {
 
 // ══ LIVE DATA LOADING FROM SUPABASE ══════════════════════════════
 async function loadAllData() {
+  console.log('loadAllData starting...');
   if (!supabase) {
+    console.log('Supabase not initialized, using fallback data');
     feedData = FALLBACK_FEED.slice();
     lbData = FALLBACK_LB.slice();
     nutritionRows = FALLBACK_NUTRITION.slice();
@@ -179,6 +183,7 @@ async function loadAllData() {
   while (attempts < maxAttempts) {
     try {
       attempts++;
+      console.log('Data fetch attempt:', attempts);
       // #2 — Live metric cards from Supabase
       var [scansRes, participantsRes, nutritionRes] = await Promise.all([
         supabase.from('scans').select('*').order('created_at', { ascending: false }).limit(100),
@@ -186,8 +191,13 @@ async function loadAllData() {
         supabase.from('nutrition_logs').select('*').order('created_at', { ascending: false }).limit(50)
       ]);
 
+      if (scansRes.error) console.warn('Scans fetch error:', scansRes.error);
+      if (participantsRes.error) console.warn('Participants fetch error:', participantsRes.error);
+      if (nutritionRes.error) console.warn('Nutrition fetch error:', nutritionRes.error);
+
     // Process scans
     if (scansRes.data && scansRes.data.length > 0) {
+      console.log('Scans loaded:', scansRes.data.length);
       feedData = scansRes.data.map(function(s) {
         var dt = new Date(s.created_at);
         return {
@@ -198,27 +208,32 @@ async function loadAllData() {
         };
       });
     } else {
+      console.log('No scans found, using fallback feed');
       feedData = FALLBACK_FEED.slice();
     }
     scanCount = feedData.length;
 
     // #6 — Live leaderboard from participants table
     if (participantsRes.data && participantsRes.data.length > 0) {
+      console.log('Participants loaded:', participantsRes.data.length);
       var maxPts = participantsRes.data[0].total_points || 1;
       lbData = participantsRes.data.map(function(p, i) {
         return {
           name: p.name, site: p.site, board: p.board,
           pts: p.total_points, pct: Math.round((p.total_points / maxPts) * 100),
           pay: p.payout_balance ? parseFloat(p.payout_balance).toFixed(2) : '0.00',
-          rank: i + 1
+          rank: i + 1,
+          id: p.id
         };
       });
     } else {
+      console.log('No participants found, using fallback leaderboard');
       lbData = FALLBACK_LB.slice();
     }
 
     // #4 — Live nutrition from nutrition_logs table
     if (nutritionRes.data && nutritionRes.data.length > 0) {
+      console.log('Nutrition logs loaded:', nutritionRes.data.length);
       nutritionRows = nutritionRes.data.map(function(n) {
         return {
           date: n.log_date || n.created_at.split('T')[0],
@@ -227,6 +242,7 @@ async function loadAllData() {
         };
       });
     } else {
+      console.log('No nutrition logs found, using fallback nutrition');
       nutritionRows = FALLBACK_NUTRITION.slice();
     }
 
@@ -240,6 +256,7 @@ async function loadAllData() {
 
       break; // Successfully loaded
     } catch(e) {
+      console.error('loadAllData catch block:', e);
       if (attempts < maxAttempts) {
         console.warn('Network timeout, retrying data load... (' + attempts + '/' + maxAttempts + ')');
         await new Promise(function(resolve) { setTimeout(resolve, 1500); });
