@@ -249,9 +249,9 @@ function initImpactMap() {
   }).addTo(map);
 
   // Berekuso farm locations from developer brief
-  L.marker([5.7456, -0.3214]).addTo(map).bindPopup('Berekuso Farm A');
-  L.marker([5.7448, -0.3221]).addTo(map).bindPopup('Berekuso Farm B');
-  L.marker([5.7444, -0.3228]).addTo(map).bindPopup('Tomato Co-op West');
+  L.marker([5.7456, -0.3214]).addTo(map).bindPopup('<b>Berekuso Farm A</b>');
+  L.marker([5.7448, -0.3221]).addTo(map).bindPopup('<b>Berekuso Farm B</b>');
+  L.marker([5.7444, -0.3228]).addTo(map).bindPopup('<b>Tomato Co-op West</b>');
   
   // Force resize check
   setTimeout(() => map.invalidateSize(), 500);
