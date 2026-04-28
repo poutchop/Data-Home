@@ -6,6 +6,14 @@ var scannerActive = false;
 var html5QrCode = null;
 var lastGPS = { lat: null, lng: null, accuracy: null };
 
+// ── Wizard State ──
+var currentStep = 1;
+var selectedAction = null;
+var weekNumber = 4;
+var stickerCount = 0;
+var auditPhoto = null;
+var wizardScanner = null;
+
 // ── Offline scan queue ──
 var QUEUE_KEY = 'dv-offline-queue';
 var isOnline = navigator.onLine;
@@ -71,33 +79,122 @@ async function syncOfflineQueue() {
 }
 
 // ── GPS tracking (runs in background) ──
-function startGPSTracking() {
+function initGPS() {
   if (!navigator.geolocation) {
-    document.getElementById('scanner-gps-status').textContent = 'GPS not available';
+    showToast('GPS not supported', 'warning');
     return;
   }
-  navigator.geolocation.watchPosition(
-    function(pos) {
-      lastGPS.lat = pos.coords.latitude;
-      lastGPS.lng = pos.coords.longitude;
-      lastGPS.accuracy = Math.round(pos.coords.accuracy);
-      var el = document.getElementById('scanner-gps-status');
-      if (el) el.innerHTML = '<span style="color:var(--green);">● GPS locked</span> — ' +
-        lastGPS.lat.toFixed(4) + '°N ' + Math.abs(lastGPS.lng).toFixed(4) + '°W (±' + lastGPS.accuracy + 'm)';
-    },
-    function(err) {
-      var el = document.getElementById('scanner-gps-status');
-      if (el) el.innerHTML = '<span style="color:var(--amber);">⚠ GPS error:</span> ' + err.message;
-    },
-    { enableHighAccuracy: true, maximumAge: 5000 }
-  );
+
+  navigator.geolocation.watchPosition(function(pos) {
+    lastGPS = {
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude,
+      accuracy: pos.coords.accuracy
+    };
+
+    var statusEl = document.getElementById('wizard-gps-status');
+    var nextBtn = document.getElementById('gps-next-btn');
+    if (statusEl) {
+      if (lastGPS.accuracy <= 50) {
+        statusEl.innerHTML = '<span style="color:var(--green)">✓ GPS Locked</span> (' + Math.round(lastGPS.accuracy) + 'm)';
+        if (nextBtn) {
+          nextBtn.disabled = false;
+          nextBtn.textContent = 'Continue →';
+        }
+      } else {
+        statusEl.innerHTML = '<span style="color:var(--amber)">Searching…</span> (' + Math.round(lastGPS.accuracy) + 'm)';
+        if (nextBtn) {
+          nextBtn.disabled = true;
+          nextBtn.textContent = 'Waiting for Lock…';
+        }
+      }
+    }
+  }, function(err) {
+    console.warn('GPS Error:', err);
+  }, { enableHighAccuracy: true });
+}
+
+// ── Wizard Navigation ──
+function nextStep() {
+  if (currentStep < 7) {
+    document.getElementById('step-' + currentStep).classList.remove('active');
+    currentStep++;
+    document.getElementById('step-' + currentStep).classList.add('active');
+    updateProgressBar();
+  }
+}
+
+function prevStep() {
+  if (currentStep > 1) {
+    document.getElementById('step-' + currentStep).classList.remove('active');
+    currentStep--;
+    document.getElementById('step-' + currentStep).classList.add('active');
+    updateProgressBar();
+  }
+}
+
+function updateProgressBar() {
+  var bars = document.querySelectorAll('.progress-bar');
+  bars.forEach(function(bar, idx) {
+    if (idx < currentStep) bar.classList.add('active');
+    else bar.classList.remove('active');
+  });
+}
+
+function selectAction(action, el) {
+  selectedAction = action;
+  document.querySelectorAll('.wizard-check-item').forEach(function(item) {
+    item.classList.remove('selected');
+  });
+  el.classList.add('selected');
+  var nextBtn = document.getElementById('action-next-btn');
+  if (nextBtn) nextBtn.disabled = false;
+}
+
+function handleWizardPhoto(event) {
+  var file = event.target.files[0];
+  if (!file) return;
+  
+  auditPhoto = file;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var preview = document.getElementById('wizard-img');
+    var placeholder = document.getElementById('wizard-photo-placeholder');
+    if (preview) {
+      preview.src = e.target.result;
+      preview.style.display = 'block';
+      if (placeholder) placeholder.style.display = 'none';
+      var nextBtn = document.getElementById('photo-next-btn');
+      if (nextBtn) nextBtn.disabled = false;
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function resetWizard() {
+  document.getElementById('step-' + currentStep).classList.remove('active');
+  currentStep = 1;
+  document.getElementById('step-' + currentStep).classList.add('active');
+  selectedAction = null;
+  auditPhoto = null;
+  var aBtn = document.getElementById('action-next-btn');
+  if (aBtn) aBtn.disabled = true;
+  var pBtn = document.getElementById('photo-next-btn');
+  if (pBtn) pBtn.disabled = true;
+  var img = document.getElementById('wizard-img');
+  if (img) img.style.display = 'none';
+  var ph = document.getElementById('wizard-photo-placeholder');
+  if (ph) ph.style.display = 'block';
+  updateProgressBar();
 }
 
 // ── Parse CC-v1 QR format ──
 function parseQRData(raw) {
-  // Format: CC-v1|{board_id}|{participant_id}|{action_type}|{issued_at_unix}|{hmac_signature}
-  if (!raw || !raw.startsWith('CC-v1|')) return null;
-  var parts = raw.split('|');
+  if (!raw) return null;
+  var trimmed = raw.trim();
+  var upper = trimmed.toUpperCase();
+  if (!upper.startsWith('CC-V1|')) return null;
+  var parts = trimmed.split('|');
   if (parts.length !== 6) return null;
   return {
     version: parts[0],
@@ -109,86 +206,64 @@ function parseQRData(raw) {
   };
 }
 
-// ── Get action display info ──
-function actionInfo(type) {
-  var map = {
-    'firewood_avoidance': { label: 'Firewood Avoidance', color: 'var(--green)', icon: '🔥', points: 3 },
-    'nutrition_meal':     { label: 'Nutrition Meal',     color: 'var(--blue)',  icon: '🥗', points: 2 },
-    'solar_drying':       { label: 'Solar Drying',       color: 'var(--amber)', icon: '☀️', points: 2 },
-    'organic_fertilizer': { label: 'Organic Fertilizer', color: 'var(--purple)', icon: '🌱', points: 2 }
-  };
-  return map[type] || { label: type, color: 'var(--muted)', icon: '📋', points: 1 };
-}
+// ── Wizard Scanner ──
+function startWizardScanner() {
+  if (wizardScanner) return;
+  
+  document.getElementById('wizard-scan-btn').style.display = 'none';
+  document.getElementById('wizard-scanner-status').textContent = 'Initialing camera...';
 
-// ── Start scanner ──
-function startScanner() {
-  if (scannerActive) return;
-  var readerEl = document.getElementById('qr-reader');
-  if (!readerEl) return;
-
-  scannerActive = true;
-  document.getElementById('scanner-start-btn').style.display = 'none';
-  document.getElementById('scanner-stop-btn').style.display = '';
-  document.getElementById('scanner-result').innerHTML = '';
-  document.getElementById('scanner-status').innerHTML = '<span style="color:var(--green);">Scanning… point camera at QR code</span>';
-
-  startGPSTracking();
-
-  html5QrCode = new Html5Qrcode('qr-reader');
-  html5QrCode.start(
+  wizardScanner = new Html5Qrcode('wizard-qr-reader');
+  wizardScanner.start(
     { facingMode: 'environment' },
     { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
     onScanSuccess,
-    function() {} // ignore scan failures (no QR in frame)
+    function() {}
   ).catch(function(err) {
-    document.getElementById('scanner-status').innerHTML = '<span style="color:var(--red);">Camera error: ' + err + '</span>';
-    scannerActive = false;
-    document.getElementById('scanner-start-btn').style.display = '';
-    document.getElementById('scanner-stop-btn').style.display = 'none';
+    document.getElementById('wizard-scanner-status').innerHTML = '<span style="color:var(--red);">Error: ' + err + '</span>';
+    document.getElementById('wizard-scan-btn').style.display = 'block';
   });
 }
 
-// ── Stop scanner ──
-function stopScanner() {
-  if (html5QrCode && scannerActive) {
-    html5QrCode.stop().then(function() {
-      html5QrCode.clear();
-      scannerActive = false;
-      document.getElementById('scanner-start-btn').style.display = '';
-      document.getElementById('scanner-stop-btn').style.display = 'none';
-      document.getElementById('scanner-status').textContent = 'Scanner stopped';
+function stopWizardScanner() {
+  if (wizardScanner) {
+    wizardScanner.stop().then(function() {
+      wizardScanner.clear();
+      wizardScanner = null;
+      document.getElementById('wizard-scan-btn').style.display = 'block';
     });
   }
 }
 
-// ── On successful QR scan ──
 async function onScanSuccess(decodedText) {
-  // Stop scanning immediately to prevent double-reads
-  if (html5QrCode) {
-    await html5QrCode.stop();
-    html5QrCode.clear();
-    scannerActive = false;
+  if (wizardScanner) {
+    await wizardScanner.stop();
+    wizardScanner.clear();
+    wizardScanner = null;
   }
-  document.getElementById('scanner-start-btn').style.display = '';
-  document.getElementById('scanner-stop-btn').style.display = 'none';
-
-  // Parse the QR
+  
+  document.getElementById('wizard-scan-btn').style.display = 'block';
+  
   var qr = parseQRData(decodedText);
-  var resultEl = document.getElementById('scanner-result');
-
   if (!qr) {
-    resultEl.innerHTML = buildResultHTML({
-      status: 'rejected',
-      message: 'Invalid QR code — not a Carbon Clarity board',
-      raw: decodedText
-    });
-    showToast('Invalid QR code', 'warning');
+    showToast('Invalid Carbon Clarity QR code', 'warning');
     return;
   }
 
-  document.getElementById('scanner-status').innerHTML = '<span style="color:var(--amber);">Verifying…</span>';
+  // Check if action matches
+  if (qr.action_type !== selectedAction) {
+    showToast('Action mismatch! Board is for ' + qr.action_type, 'warning');
+    return;
+  }
 
-  // Build verification payload
+  submitScan(qr);
+}
+
+async function submitScan(qr) {
+  nextStep(); // Go to result step
+  var resultEl = document.getElementById('wizard-result');
+  resultEl.innerHTML = '<div class="spinner"></div><div style="text-align:center;margin-top:12px;">Verifying scan...</div>';
+
   var payload = {
     board_id: qr.board_id,
     participant_id: qr.participant_id,
@@ -198,454 +273,98 @@ async function onScanSuccess(decodedText) {
     gps_lng: lastGPS.lng || -0.3214,
     gps_accuracy_m: lastGPS.accuracy || 999,
     scan_time_device: new Date().toISOString(),
-    issued_at: qr.issued_at
+    issued_at: qr.issued_at,
+    week_number: parseInt(document.getElementById('wizard-week').value),
+    sticker_count: parseInt(document.getElementById('wizard-stickers').value),
+    photo_s3_key: 'audit/' + Date.now() + '.jpg' // Mock key
   };
 
-  // Try Edge Function verification if online
   var result = null;
-  var usedOfflineQueue = false;
-
   if (supabase && isOnline) {
     try {
       var { data, error } = await supabase.functions.invoke('verify-scan', { body: payload });
       if (error) throw error;
       result = data;
     } catch (e) {
-      console.log('Edge function failed, falling back to local verify:', e);
+      console.log('Edge function failed, falling back to local:', e);
     }
   }
 
-  // Fallback: Local verification & offline queue
   if (!result) {
     result = await verifyFactors(payload, qr);
-    usedOfflineQueue = true;
-    
     var queue = getOfflineQueue();
     queue.push(payload);
     saveOfflineQueue(queue);
-    showToast('Saved to offline queue — will sync later', 'warning');
+    showToast('Offline: Saved to local queue', 'warning');
   }
 
   resultEl.innerHTML = buildResultHTML(result);
-
-  // Also add to the live feed
-  var now = new Date();
-  feedData.unshift({
-    name: result.participant_name || 'Participant',
-    board: qr.board_id.substring(0, 8),
-    site: result.site || 'Berekuso',
-    action: qr.action_type,
-    status: result.status,
-    time: String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0')
-  });
-  scanCount++;
-  var scansEl = document.getElementById('m-scans');
-  if (scansEl) scansEl.textContent = scanCount;
-
-  showToast(result.status === 'hardened' ? '✅ HARDENED — Payout queued' : '⚠️ FLAGGED — Review needed',
-    result.status === 'hardened' ? 'success' : 'warning');
-
-  // Show SMS receipt preview
-  if (result.status === 'hardened') {
-    showSmsReceipt(result, qr);
-  }
+  showToast(result.status === 'hardened' ? '✅ SUCCESS' : '⚠️ FLAGGED', result.status === 'hardened' ? 'success' : 'warning');
 }
 
-// ── SMS Receipt simulation ──
-function showSmsReceipt(result, qr) {
-  var info = actionInfo(qr.action_type);
-  var now = new Date();
-  var dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-  var timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-
-  var smsText = 'Carbon Clarity ✅\n'
-    + '────────────────\n'
-    + result.participant_name + '\n'
-    + info.label + ' — Week 4\n'
-    + 'Points: +' + result.points_awarded + ' pts\n'
-    + 'Status: HARDENED\n'
-    + 'Date: ' + dateStr + ' ' + timeStr + '\n'
-    + '────────────────\n'
-    + 'Total: ' + (142 + result.points_awarded) + ' pts\n'
-    + 'Payout: GHS 0.25 queued\n'
-    + 'via MTN MoMo ****7731';
-
-  var receiptEl = document.getElementById('scanner-result');
-  if (receiptEl) {
-    receiptEl.innerHTML += '<div style="margin-top:12px;background:var(--surf2);border-radius:12px;padding:14px;border:1px solid rgba(16,217,126,0.2);">'
-      + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">'
-        + '<span style="font-size:16px;">📱</span>'
-        + '<span style="font-size:12px;font-weight:700;color:var(--fg);">SMS Receipt Preview</span>'
-        + '<span style="font-size:10px;color:var(--muted);">→ MTN ****7731</span>'
-      + '</div>'
-      + '<pre style="font-family:\'JetBrains Mono\',monospace;font-size:11px;line-height:1.5;color:var(--green);white-space:pre-wrap;margin:0;">' + smsText + '</pre>'
-    + '</div>';
-  }
-}
-
-// ── 3-Factor verification logic ──
 async function verifyFactors(payload, qr) {
-  // Simulate verification delay
   await new Promise(function(r) { setTimeout(r, 800); });
-
-  // Factor 1: QR HMAC — check format validity
-  var qrPass = qr.hmac && qr.hmac.length >= 10 && qr.version === 'CC-v1';
-
-  // Factor 2: GPS Geofence — check within 200m of Berekuso centroid
-  var berekusoLat = 5.7456, berekusoLng = -0.3214, fenceRadius = 200;
+  var qrPass = qr.hmac && qr.hmac.length >= 10;
+  var berekusoLat = 5.7456, berekusoLng = -0.3214;
   var dist = haversineDistance(payload.gps_lat, payload.gps_lng, berekusoLat, berekusoLng);
-  var gpsPass = dist <= fenceRadius;
-
-  // Factor 3: Timestamp — check scan time vs device time
-  var now = Math.floor(Date.now() / 1000);
-  var delta = Math.abs(now - qr.issued_at);
-  var timePass = true; // Device time is always valid for live scans
-
-  var allPass = qrPass && gpsPass && timePass;
-
-  // Look up participant name from leaderboard data
-  var pName = null;
-  var pSite = null;
-  for (var i = 0; i < lbData.length; i++) {
-    if (lbData[i].name) { pName = lbData[i].name; pSite = lbData[i].site; break; }
-  }
-
-  var info = actionInfo(qr.action_type);
-
+  var gpsPass = dist <= 200;
+  var allPass = qrPass && gpsPass;
   return {
     status: allPass ? 'hardened' : 'flagged',
-    participant_name: pName || 'Participant',
-    site: pSite || 'Berekuso Farm A',
-    points_awarded: allPass ? info.points : 0,
-    payout_queued: allPass,
+    participant_name: 'Akosua Mensah',
+    site: 'Berekuso',
     factors: {
       qr: { pass: qrPass },
       gps: { pass: gpsPass, distance_m: Math.round(dist) },
-      timestamp: { pass: timePass, delta_seconds: delta }
+      timestamp: { pass: true }
     }
   };
 }
 
-// ── Haversine distance calculation ──
-function haversineDistance(lat1, lng1, lat2, lng2) {
+function haversineDistance(lat1, lon1, lat2, lon2) {
   var R = 6371000;
   var dLat = (lat2 - lat1) * Math.PI / 180;
-  var dLng = (lng2 - lng1) * Math.PI / 180;
-  var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+  var dLon = (lon2 - lon1) * Math.PI / 180;
+  var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
           Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-          Math.sin(dLng / 2) * Math.sin(dLng / 2);
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          Math.sin(dLon/2) * Math.sin(dLon/2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-// ── Build result HTML ──
-function buildResultHTML(result) {
-  if (result.raw) {
-    // Invalid QR
-    return '<div class="verdict fail" style="margin-top:0;">'
-      + '<div style="font-size:14px;font-weight:700;color:var(--red);">✗ REJECTED</div>'
-      + '<div style="font-size:11px;color:var(--muted);margin-top:4px;">' + result.message + '</div>'
-      + '<div style="font-size:10px;color:var(--muted);margin-top:4px;word-break:break-all;">Raw: ' + result.raw + '</div>'
-      + '</div>';
-  }
+function buildResultHTML(res) {
+  var color = res.status === 'hardened' ? 'var(--green)' : 'var(--amber)';
+  var icon = res.status === 'hardened' ? '✓' : '⚠';
+  var label = res.status === 'hardened' ? 'HARDENED' : 'FLAGGED';
+  
+  var html = '<div class="verdict ' + (res.status === 'hardened' ? 'ok' : 'fail') + '">' +
+    '<div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;opacity:0.7;">Status</div>' +
+    '<div style="font-size:24px;font-weight:800;color:' + color + ';">' + icon + ' ' + label + '</div>' +
+    '</div>';
 
-  var info = actionInfo(result.factors ? 'firewood_avoidance' : '');
-  var isHardened = result.status === 'hardened';
-  var f = result.factors;
-
-  return '<div style="display:flex;flex-direction:column;gap:8px;">'
-    // Factor 1
-    + '<div class="factor-row ' + (f.qr.pass ? 'ok' : 'fail') + '">'
-      + '<div class="factor-label">FACTOR 1 · QR HMAC</div>'
-      + '<div class="factor-val" style="color:' + (f.qr.pass ? 'var(--green)' : 'var(--red)') + ';">'
-        + (f.qr.pass ? '✓ Signature valid' : '✗ Invalid signature') + '</div>'
-    + '</div>'
-    // Factor 2
-    + '<div class="factor-row ' + (f.gps.pass ? 'ok' : 'fail') + '">'
-      + '<div class="factor-label">FACTOR 2 · GPS GEOFENCE</div>'
-      + '<div class="factor-val" style="color:' + (f.gps.pass ? 'var(--green)' : 'var(--red)') + ';">'
-        + (f.gps.pass ? '✓ ' : '✗ ') + f.gps.distance_m + ' m from centroid</div>'
-      + '<div class="factor-sub">' + (f.gps.pass ? 'Within 200 m fence' : 'Outside 200 m geofence — flagged') + '</div>'
-    + '</div>'
-    // Factor 3
-    + '<div class="factor-row ' + (f.timestamp.pass ? 'ok' : 'fail') + '">'
-      + '<div class="factor-label">FACTOR 3 · TIMESTAMP</div>'
-      + '<div class="factor-val" style="color:' + (f.timestamp.pass ? 'var(--green)' : 'var(--red)') + ';">'
-        + (f.timestamp.pass ? '✓ Δt valid' : '✗ Time drift detected') + '</div>'
-    + '</div>'
-    // Verdict
-    + '<div class="verdict ' + (isHardened ? 'ok' : 'fail') + '">'
-      + '<div style="font-size:14px;font-weight:800;color:' + (isHardened ? 'var(--green)' : 'var(--amber)') + ';">'
-        + (isHardened ? '✅ HARDENED — Payout queued' : '⚠️ FLAGGED — Review needed') + '</div>'
-      + '<div style="font-size:11px;color:var(--muted);margin-top:4px;">'
-        + result.participant_name + ' · ' + result.site
-        + (isHardened ? ' · +' + result.points_awarded + ' pts' : '')
-      + '</div>'
-    + '</div>'
-  + '</div>';
+  html += '<div style="margin-top:16px;">' +
+    '<div class="factor-row ' + (res.factors.qr.pass ? 'ok' : 'fail') + '">' +
+      '<div class="factor-label">FACTOR 1: QR AUTH</div>' +
+      '<div class="factor-val">' + (res.factors.qr.pass ? 'Valid Signature' : 'Invalid Signature') + '</div>' +
+    '</div>' +
+    '<div class="factor-row ' + (res.factors.gps.pass ? 'ok' : 'fail') + '">' +
+      '<div class="factor-label">FACTOR 2: GEOFENCE</div>' +
+      '<div class="factor-val">' + (res.factors.gps.pass ? 'Within Berekuso' : 'Outside Target Area') + '</div>' +
+      '<div class="factor-sub">Distance: ' + res.factors.gps.distance_m + 'm</div>' +
+    '</div>' +
+    '</div>';
+    
+  return html;
 }
-
-// ── Demo scan (for testing without camera) ──
-function demoScan() {
-  var demoQR = 'CC-v1|b4f8a1c2-0000-0000-0000-000000000001|p9d3e7f0-0000-0000-0000-000000000001|firewood_avoidance|' + Math.floor(Date.now()/1000) + '|a3f9c82b1d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a';
-  onScanSuccess(demoQR);
-}
-
-// ── #10 Desktop detection — show warning for non-mobile ──
-var isMobileDevice = /Android|iPhone|iPad|iPod|Opera Mini|IEMobile/i.test(navigator.userAgent);
-(function() {
-  var origSetTab = null;
-  document.addEventListener('DOMContentLoaded', function() {
-    // Show desktop warning when scanner tab is first clicked
-    if (!isMobileDevice) {
-      var warn = document.getElementById('desktop-scanner-warning');
-      if (warn) warn.style.display = '';
-    }
-  });
-  // Also check periodically
-  setInterval(function() {
-    if (!isMobileDevice) {
-      var warn = document.getElementById('desktop-scanner-warning');
-      var panel = document.getElementById('panel-scanner');
-      if (warn && panel && panel.style.display !== 'none') {
-        warn.style.display = '';
-      }
-    }
-  }, 1000);
-})();
 
 // ── PWA — Register service worker ──
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/Data-Home/sw.js').then(function(reg) {
+  navigator.serviceWorker.register('./sw.js').then(function(reg) {
     console.log('SW registered:', reg.scope);
   }).catch(function(err) {
     console.log('SW failed:', err);
   });
 }
 
-// ── PWA Install prompt ──
-var deferredInstallPrompt = null;
-window.addEventListener('beforeinstallprompt', function(e) {
-  e.preventDefault();
-  deferredInstallPrompt = e;
-});
-
-function installPwa() {
-  if (deferredInstallPrompt) {
-    // Android Chrome / Supported browsers
-    deferredInstallPrompt.prompt();
-    deferredInstallPrompt.userChoice.then(function(result) {
-      if (result.outcome === 'accepted') {
-        showToast('✅ App installed — find it on your home screen');
-      }
-      deferredInstallPrompt = null;
-    });
-  } else {
-    // iOS Safari or already installed or desktop
-    var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    if (isIOS) {
-      alert('To install on iPhone/iPad:\n1. Tap the Share button at the bottom of Safari (square with an arrow pointing up)\n2. Scroll down and tap "Add to Home Screen"');
-    } else {
-      alert('To install this app, open the browser menu (⋮) and tap "Install app" or "Add to Home screen".');
-    }
-  }
-}
-
-// Init network status on load
-setTimeout(updateQueueBadge, 500);
-// Try syncing any queued scans on load
-setTimeout(syncOfflineQueue, 2000);
-
-// ══ WIZARD UI LOGIC ════════════════════════════════════════════════════════
-var wizardStep = 1;
-var wizardState = {};
-
-function openScannerWizard() {
-  wizardStep = 1;
-  wizardState = {};
-  var wk = document.getElementById('wizard-week'); if (wk) wk.value = 4;
-  var st = document.getElementById('wizard-stickers'); if (st) st.value = 0;
-  
-  var ph = document.getElementById('wizard-photo-placeholder'); if (ph) ph.style.display = '';
-  var img = document.getElementById('wizard-img'); 
-  if (img) { img.style.display = 'none'; img.src = ''; }
-  var pn = document.getElementById('photo-next-btn'); if (pn) pn.disabled = true;
-  
-  document.querySelectorAll('.wizard-check-item').forEach(function(el) { el.classList.remove('selected'); });
-  var an = document.getElementById('action-next-btn'); if (an) an.disabled = true;
-  
-  startGPSTracking();
-  renderWizard();
-}
-
-window.openScannerWizard = openScannerWizard;
-
-function nextStep() {
-  var wk = document.getElementById('wizard-week');
-  if (wizardStep === 2 && wk) wizardState.week_number = parseInt(wk.value) || 4;
-  var st = document.getElementById('wizard-stickers');
-  if (wizardStep === 4 && st) wizardState.sticker_count = parseInt(st.value) || 0;
-  
-  wizardStep = Math.min(7, wizardStep + 1);
-  renderWizard();
-}
-window.nextStep = nextStep;
-
-function prevStep() {
-  wizardStep = Math.max(1, wizardStep - 1);
-  renderWizard();
-}
-window.prevStep = prevStep;
-
-function selectAction(id, el) {
-  document.querySelectorAll('.wizard-check-item').forEach(function(n) { n.classList.remove('selected'); });
-  el.classList.add('selected');
-  wizardState.action = id;
-  var an = document.getElementById('action-next-btn'); if (an) an.disabled = false;
-}
-window.selectAction = selectAction;
-
-function handleWizardPhoto(e) {
-  var file = e.target.files[0];
-  if (!file) return;
-  var reader = new FileReader();
-  reader.onload = function(evt) {
-    wizardState.photo = evt.target.result;
-    var ph = document.getElementById('wizard-photo-placeholder'); if (ph) ph.style.display = 'none';
-    var img = document.getElementById('wizard-img');
-    if (img) { img.src = wizardState.photo; img.style.display = ''; }
-    var pn = document.getElementById('photo-next-btn'); if (pn) pn.disabled = false;
-  };
-  reader.readAsDataURL(file);
-}
-window.handleWizardPhoto = handleWizardPhoto;
-
-function startWizardScanner() {
-  var st = document.getElementById('wizard-scanner-status');
-  if (st) st.textContent = 'Scanning...';
-  if (html5QrCode) return;
-  html5QrCode = new Html5Qrcode('wizard-qr-reader');
-  html5QrCode.start(
-    { facingMode: 'environment' },
-    { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
-    async function(decodedText) {
-      await stopWizardScanner();
-      wizardState.qr = decodedText;
-      processWizardScan();
-    },
-    function() {} 
-  ).catch(function(err) {
-    var st = document.getElementById('wizard-scanner-status');
-    if (st) st.textContent = 'Camera error: ' + err;
-  });
-}
-window.startWizardScanner = startWizardScanner;
-
-function stopWizardScanner() {
-  if (html5QrCode) {
-    var p = html5QrCode.stop().then(function() {
-      html5QrCode.clear();
-      html5QrCode = null;
-      var st = document.getElementById('wizard-scanner-status');
-      if (st) st.textContent = 'Stopped';
-    });
-    return p;
-  }
-  return Promise.resolve();
-}
-window.stopWizardScanner = stopWizardScanner;
-
-function resetWizard() {
-  openScannerWizard();
-}
-window.resetWizard = resetWizard;
-
-function renderWizard() {
-  document.querySelectorAll('.wizard-step').forEach(function(el) { el.classList.remove('active'); });
-  var stepEl = document.getElementById('step-' + wizardStep);
-  if (stepEl) stepEl.classList.add('active');
-  
-  var bars = document.querySelectorAll('.wizard-progress .progress-bar');
-  bars.forEach(function(b, i) {
-    if (i < wizardStep) b.classList.add('active');
-    else b.classList.remove('active');
-  });
-
-  if (wizardStep === 1) {
-    var stat = document.getElementById('wizard-gps-status');
-    var nxt = document.getElementById('gps-next-btn');
-    if (lastGPS && lastGPS.accuracy && lastGPS.accuracy <= 50) {
-      if (stat) stat.innerHTML = '<span style="color:var(--green)">✓ GPS Locked (' + Math.round(lastGPS.accuracy) + 'm)</span>';
-      if (nxt) { nxt.disabled = false; nxt.textContent = 'Next'; }
-    } else {
-      if (stat) stat.innerHTML = 'Waiting for high-accuracy GPS...<br><span style="font-size:11px;color:var(--muted)">Current: ' + (lastGPS.accuracy ? Math.round(lastGPS.accuracy) + 'm' : 'Unknown') + '</span>';
-      if (nxt) { nxt.disabled = true; nxt.textContent = 'Waiting...'; }
-    }
-  }
-}
-
-async function processWizardScan() {
-  wizardStep = 7;
-  renderWizard();
-  var resEl = document.getElementById('wizard-result');
-  if (resEl) resEl.innerHTML = '<div class="spinner"></div><div style="text-align:center;margin-top:10px;font-size:12px;color:var(--muted)">Verifying CC-v1 Protocol...</div>';
-  
-  var qr = parseQRData(wizardState.qr);
-  if (!qr) {
-    if (resEl) resEl.innerHTML = '<div style="color:var(--red);text-align:center;">Invalid QR format. Not a CC-v1 payload.</div>';
-    return;
-  }
-  
-  var payload = {
-    board_id: qr.board_id,
-    participant_id: qr.participant_id,
-    action_type: wizardState.action || qr.action_type,
-    qr_hmac_received: qr.hmac,
-    gps_lat: lastGPS.lat,
-    gps_lng: lastGPS.lng,
-    gps_accuracy_m: lastGPS.accuracy,
-    week_number: wizardState.week_number,
-    sticker_count: wizardState.sticker_count,
-    photo_s3_key: 'offline_mode_img', 
-    scan_time_device: new Date().toISOString(),
-    issued_at: qr.issued_at
-  };
-
-  var result = null;
-  if (supabase && isOnline) {
-    try {
-      var { data, error } = await supabase.functions.invoke('verify-scan', { body: payload });
-      if (error) throw error;
-      result = data;
-    } catch(e) {}
-  }
-  
-  if (!result) {
-    result = await verifyFactors(payload, qr);
-    var queue = getOfflineQueue();
-    queue.push(payload);
-    saveOfflineQueue(queue);
-    showToast('Saved offline. Will sync later.', 'warning');
-  }
-
-  if (resEl) resEl.innerHTML = buildResultHTML(result);
-  
-  if (result.status === 'hardened') {
-    feedData.unshift({
-      name: result.participant_name || 'Participant',
-      board: qr.board_id.substring(0, 8),
-      site: result.site || 'Berekuso',
-      action: payload.action_type,
-      status: result.status,
-      time: String(new Date().getHours()).padStart(2, '0') + ':' + String(new Date().getMinutes()).padStart(2, '0')
-    });
-    scanCount++;
-    var sEl = document.getElementById('m-scans');
-    if (sEl) sEl.textContent = scanCount;
-  }
-}
-
-document.addEventListener('click', function(e) {
-  if (e.target.dataset && e.target.dataset.tab === 'scanner') {
-    setTimeout(openScannerWizard, 100);
-  }
-});
+// Initialize GPS on load
+initGPS();
+updateQueueBadge();
