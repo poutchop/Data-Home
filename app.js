@@ -1,42 +1,44 @@
-// ══ SUPABASE CONFIG ═══════════════════════════════════════════════
+// == SUPABASE CONFIG ==
 const SUPABASE_URL = 'https://hbvrfuypyzkvpuobjynw.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhidnJmdXlweXprdnB1b2JqeW53Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNTM1NzYsImV4cCI6MjA5MjcyOTU3Nn0.UR_mcEFMc31YP443zeCfCOVYjV6groSoofDbZbco7fw';
 let currentUser = null;
-let userRole = 'user'; // 'admin' or 'user'
+let userRole = 'user'; 
 const ADMIN_EMAILS = ['admin@carbonclarify.com', 'poutchop@gmail.com'];
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// Initialize Client (renamed to sb to avoid conflict with global library)
+var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+window.sb = sb; // Make global for scanner.js
 
 // DB Connection Test
-supabase.from('participants').select('count', { count: 'exact', head: true }).then(({data, count, error}) => {
+sb.from('participants').select('count', { count: 'exact', head: true }).then(({data, count, error}) => {
   console.log('DB test (participants count):', count, data, error);
 });
 
 // ── Section 4: Modular Loaders from Developer Brief ──
 
 async function loadMetrics() {
-  if (!supabase) return;
+  if (!sb) return;
   try {
     // Total verified scans
-    const { count: scanCount } = await supabase
+    const { count: scanCount } = await sb
       .from('scans').select('*', { count: 'exact', head: true })
       .eq('status', 'hardened');
     document.getElementById('m-scans').textContent = scanCount || 0;
 
     // Verification rate
-    const { count: total } = await supabase
+    const { count: total } = await sb
       .from('scans').select('*', { count: 'exact', head: true });
     const rate = total > 0 ? Math.round((scanCount / total) * 100) : 0;
     document.getElementById('m-rate').textContent = rate + '%';
 
     // CO2 avoided
-    const { data: co2Data } = await supabase
+    const { data: co2Data } = await sb
       .from('scans').select('co2_kg').eq('status', 'hardened');
     const co2Total = (co2Data || []).reduce((s, r) => s + (r.co2_kg || 0), 0);
     document.getElementById('m-co2').textContent = co2Total.toFixed(1);
 
     // Payouts total
-    const { data: payData } = await supabase
+    const { data: payData } = await sb
       .from('payouts').select('amount_ghs').eq('status', 'confirmed');
     const payTotal = (payData || []).reduce((s, r) => s + (r.amount_ghs || 0), 0);
     document.getElementById('m-payout').textContent = 'GHS ' + payTotal.toFixed(2);
@@ -45,8 +47,8 @@ async function loadMetrics() {
 }
 
 async function loadLeaderboard() {
-  if (!supabase) return;
-  const { data } = await supabase
+  if (!sb) return;
+  const { data } = await sb
     .from('participants')
     .select('full_name, site, total_points, weeks_active')
     .order('total_points', { ascending: false })
@@ -69,8 +71,8 @@ async function loadLeaderboard() {
 }
 
 async function loadNutrition() {
-  if (!supabase) return;
-  const { data } = await supabase
+  if (!sb) return;
+  const { data } = await sb
     .from('nutrition_logs')
     .select('logged_at, participant_id, site, meal_name, protein_g, kcal, score, verified, participants(full_name)')
     .order('logged_at', { ascending: false })
@@ -91,8 +93,8 @@ async function loadNutrition() {
 }
 
 async function loadFeed() {
-  if (!supabase) return;
-  const { data } = await supabase
+  if (!sb) return;
+  const { data } = await sb
     .from('scans')
     .select('scanned_at, action_type, status, points_awarded, co2_kg, gps_lat, gps_lng, participants(full_name, site)')
     .order('scanned_at', { ascending: false })
@@ -116,8 +118,8 @@ async function loadFeed() {
 }
 
 async function loadParticipantStory() {
-  if (!supabase) return;
-  const { data } = await supabase
+  if (!sb) return;
+  const { data } = await sb
     .from('participants')
     .select('full_name, site, total_points, weeks_active')
     .order('total_points', { ascending: false })
@@ -304,7 +306,7 @@ function setTab(id, el) {
 }
 
 async function handleAuth() {
-  if (!supabase) return;
+  if (!sb) return;
   const email = document.getElementById('auth-email').value;
   const password = document.getElementById('auth-pass').value;
   if (!email || !password) {
@@ -312,7 +314,7 @@ async function handleAuth() {
     return;
   }
   try {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
     if (error) throw error;
     currentUser = data.user;
     userRole = ADMIN_EMAILS.includes(currentUser.email) ? 'admin' : 'user';
@@ -342,7 +344,7 @@ function toggleAuthMode() {
   }
 }
 async function handleLogout() {
-  if (supabase) await supabase.auth.signOut();
+  if (sb) await sb.auth.signOut();
   currentUser = null;
   userRole = 'user';
   localStorage.removeItem('dv-user');
