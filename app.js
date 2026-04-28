@@ -1,16 +1,15 @@
 // ══ SUPABASE CONFIG ═══════════════════════════════════════════════
 const SUPABASE_URL = 'https://hbvrfuypyzkvpuobjynw.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhidnJmdXlweXprdnB1b2JqeW53Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNTM1NzYsImV4cCI6MjA5MjcyOTU3Nn0.UR_mcEFMc31YP443zeCfCOVYjV6groSoofDbZbco7fw';
-let supabase = null;
+let sb = null;
 let currentUser = null;
 let userRole = 'user'; // 'admin' or 'user'
 
 const ADMIN_EMAILS = ['admin@carbonclarify.com', 'poutchop@gmail.com'];
 
 if (SUPABASE_URL && SUPABASE_KEY && window.supabase) {
-  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 }
-var sb = supabase; // Alias for Developer Brief compatibility
 
 // ── Section 4: Modular Loaders from Developer Brief ──
 
@@ -303,8 +302,14 @@ function setTab(id, el) {
   if (el) el.classList.add('active');
 }
 
-async function handleAuth(email, password) {
+async function handleAuth() {
   if (!sb) return;
+  const email = document.getElementById('auth-email').value;
+  const password = document.getElementById('auth-pass').value;
+  if (!email || !password) {
+    showToast('Please enter credentials', 'warning');
+    return;
+  }
   try {
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
     if (error) throw error;
@@ -318,12 +323,72 @@ async function handleAuth(email, password) {
   }
 }
 
-function logout() {
-  if (sb) sb.auth.signOut();
+function showAuth() {
+  document.getElementById('auth-modal').style.display = 'flex';
+}
+function hideAuth() {
+  document.getElementById('auth-modal').style.display = 'none';
+}
+function toggleAuthMode() {
+  const signin = document.getElementById('auth-signin-form');
+  const request = document.getElementById('auth-request-form');
+  if (signin.style.display === 'none') {
+    signin.style.display = 'block';
+    request.style.display = 'none';
+  } else {
+    signin.style.display = 'none';
+    request.style.display = 'block';
+  }
+}
+async function handleLogout() {
+  if (sb) await sb.auth.signOut();
   currentUser = null;
   userRole = 'user';
   localStorage.removeItem('dv-user');
   location.reload();
+}
+
+function checkPassStrength(pass) {
+  const bar = document.getElementById('strength-bar');
+  if (!bar) return;
+  let s = 0;
+  if (pass.length > 6) s += 33;
+  if (/[A-Z]/.test(pass)) s += 33;
+  if (/[0-9]/.test(pass)) s += 34;
+  bar.style.width = s + '%';
+  bar.style.background = s < 40 ? 'var(--red)' : (s < 80 ? 'var(--amber)' : 'var(--green)');
+}
+async function submitAccessRequest() {
+  showToast('Access request submitted! Admin will review.', 'success');
+  hideAuth();
+}
+
+function logout() {
+  handleLogout();
+}
+
+// ── PWA INSTALL ──
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  const installBtn = document.getElementById('pwa-install-btn');
+  if (installBtn) installBtn.style.display = 'block';
+});
+
+async function installPwa() {
+  if (!deferredPrompt) {
+    showToast('App already installed or not supported', 'info');
+    return;
+  }
+  deferredPrompt.prompt();
+  const { outcome } = await deferredPrompt.userChoice;
+  if (outcome === 'accepted') {
+    console.log('User accepted the install prompt');
+  }
+  deferredPrompt = null;
+  const installBtn = document.getElementById('pwa-install-btn');
+  if (installBtn) installBtn.style.display = 'none';
 }
 
 function onLoginSuccess() {
