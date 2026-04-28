@@ -55,7 +55,7 @@ window.addEventListener('offline', function() {
 
 // Sync queued scans when back online
 async function syncOfflineQueue() {
-  if (!sb || !isOnline) return;
+  if (!supabase || !isOnline) return;
   var queue = getOfflineQueue();
   if (queue.length === 0) return;
 
@@ -64,7 +64,7 @@ async function syncOfflineQueue() {
 
   for (var i = 0; i < queue.length; i++) {
     try {
-      var { data, error } = await sb.functions.invoke('verify-scan', { body: queue[i] });
+      var { data, error } = await supabase.functions.invoke('verify-scan', { body: queue[i] });
       if (error) throw error;
       synced++;
     } catch(e) {
@@ -280,9 +280,9 @@ async function submitScan(qr) {
   };
 
   var result = null;
-  if (sb && isOnline) {
+  if (supabase && isOnline) {
     try {
-      var { data, error } = await sb.functions.invoke('verify-scan', { body: payload });
+      var { data, error } = await supabase.functions.invoke('verify-scan', { body: payload });
       if (error) throw error;
       result = data;
     } catch (e) {

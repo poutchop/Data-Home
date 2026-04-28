@@ -1,41 +1,42 @@
 // ══ SUPABASE CONFIG ═══════════════════════════════════════════════
 const SUPABASE_URL = 'https://hbvrfuypyzkvpuobjynw.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhidnJmdXlweXprdnB1b2JqeW53Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNTM1NzYsImV4cCI6MjA5MjcyOTU3Nn0.UR_mcEFMc31YP443zeCfCOVYjV6groSoofDbZbco7fw';
-let sb = null;
 let currentUser = null;
 let userRole = 'user'; // 'admin' or 'user'
-
 const ADMIN_EMAILS = ['admin@carbonclarify.com', 'poutchop@gmail.com'];
 
-if (SUPABASE_URL && SUPABASE_KEY && window.supabase) {
-  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-}
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// DB Connection Test
+supabase.from('participants').select('count', { count: 'exact', head: true }).then(({data, count, error}) => {
+  console.log('DB test (participants count):', count, data, error);
+});
 
 // ── Section 4: Modular Loaders from Developer Brief ──
 
 async function loadMetrics() {
-  if (!sb) return;
+  if (!supabase) return;
   try {
     // Total verified scans
-    const { count: scanCount } = await sb
+    const { count: scanCount } = await supabase
       .from('scans').select('*', { count: 'exact', head: true })
       .eq('status', 'hardened');
     document.getElementById('m-scans').textContent = scanCount || 0;
 
     // Verification rate
-    const { count: total } = await sb
+    const { count: total } = await supabase
       .from('scans').select('*', { count: 'exact', head: true });
     const rate = total > 0 ? Math.round((scanCount / total) * 100) : 0;
     document.getElementById('m-rate').textContent = rate + '%';
 
     // CO2 avoided
-    const { data: co2Data } = await sb
+    const { data: co2Data } = await supabase
       .from('scans').select('co2_kg').eq('status', 'hardened');
     const co2Total = (co2Data || []).reduce((s, r) => s + (r.co2_kg || 0), 0);
     document.getElementById('m-co2').textContent = co2Total.toFixed(1);
 
     // Payouts total
-    const { data: payData } = await sb
+    const { data: payData } = await supabase
       .from('payouts').select('amount_ghs').eq('status', 'confirmed');
     const payTotal = (payData || []).reduce((s, r) => s + (r.amount_ghs || 0), 0);
     document.getElementById('m-payout').textContent = 'GHS ' + payTotal.toFixed(2);
@@ -44,8 +45,8 @@ async function loadMetrics() {
 }
 
 async function loadLeaderboard() {
-  if (!sb) return;
-  const { data } = await sb
+  if (!supabase) return;
+  const { data } = await supabase
     .from('participants')
     .select('full_name, site, total_points, weeks_active')
     .order('total_points', { ascending: false })
@@ -68,8 +69,8 @@ async function loadLeaderboard() {
 }
 
 async function loadNutrition() {
-  if (!sb) return;
-  const { data } = await sb
+  if (!supabase) return;
+  const { data } = await supabase
     .from('nutrition_logs')
     .select('logged_at, participant_id, site, meal_name, protein_g, kcal, score, verified, participants(full_name)')
     .order('logged_at', { ascending: false })
@@ -90,8 +91,8 @@ async function loadNutrition() {
 }
 
 async function loadFeed() {
-  if (!sb) return;
-  const { data } = await sb
+  if (!supabase) return;
+  const { data } = await supabase
     .from('scans')
     .select('scanned_at, action_type, status, points_awarded, co2_kg, gps_lat, gps_lng, participants(full_name, site)')
     .order('scanned_at', { ascending: false })
@@ -115,8 +116,8 @@ async function loadFeed() {
 }
 
 async function loadParticipantStory() {
-  if (!sb) return;
-  const { data } = await sb
+  if (!supabase) return;
+  const { data } = await supabase
     .from('participants')
     .select('full_name, site, total_points, weeks_active')
     .order('total_points', { ascending: false })
@@ -303,7 +304,7 @@ function setTab(id, el) {
 }
 
 async function handleAuth() {
-  if (!sb) return;
+  if (!supabase) return;
   const email = document.getElementById('auth-email').value;
   const password = document.getElementById('auth-pass').value;
   if (!email || !password) {
@@ -311,7 +312,7 @@ async function handleAuth() {
     return;
   }
   try {
-    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
     currentUser = data.user;
     userRole = ADMIN_EMAILS.includes(currentUser.email) ? 'admin' : 'user';
@@ -341,7 +342,7 @@ function toggleAuthMode() {
   }
 }
 async function handleLogout() {
-  if (sb) await sb.auth.signOut();
+  if (supabase) await supabase.auth.signOut();
   currentUser = null;
   userRole = 'user';
   localStorage.removeItem('dv-user');
