@@ -26,12 +26,6 @@ function setTab(id, el) {
 
 // ── Auth ─────────────────────────────────────────────────────
 async function handleAuth(email, password) {
-  // If no arguments provided, try to read from the login form
-  if (!email || !password) {
-    email = document.getElementById('login-email')?.value;
-    password = document.getElementById('login-password')?.value;
-  }
-  
   if (!email || !password) {
     showToast('Please enter credentials', 'warning');
     return;
@@ -270,9 +264,14 @@ function installPwa() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+  console.log('Data Vault v3.0 initializing...');
+  
   // Theme load
   const theme = localStorage.getItem('dv-theme') || 'dark';
   document.body.className = theme + '-mode';
+
+  // Map init
+  initImpactMap();
 
   // Auth check
   const { data: { session } } = await sb.auth.getSession();
@@ -283,7 +282,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Live Load
   await loadAll();
-  initImpactMap();
   
   // Refresh loop
   setInterval(loadMetrics, 30000);
