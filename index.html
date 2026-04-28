@@ -22,6 +22,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="index.css?v=2.0.2">
 <link rel="stylesheet" href="styles.css?v=2.0.2"/>
 <script>
   // Kill zombie service workers from old paths/subdirectories
@@ -47,10 +48,12 @@
   <div class="modal" id="auth-signin-form">
     <h2>Sign In</h2>
     <p>Access the Data Vault platform</p>
-    <input class="modal-input" type="email" id="auth-email" placeholder="Email address"/>
-    <input class="modal-input" type="password" id="auth-pass" placeholder="Password"/>
-    <div id="login-lockout-msg" style="color:var(--red);font-size:11px;margin-bottom:10px;display:none;">Too many failed attempts. Try again in 60s.</div>
-    <button class="modal-btn" id="auth-submit" onclick="handleAuth()">Sign In</button>
+    <input class="modal-input" type="email" id="login-email" placeholder="Email address" />
+    <input class="modal-input" type="password" id="login-password" placeholder="Password" />
+    <button class="modal-btn" onclick="handleAuth(
+      document.getElementById('login-email').value,
+      document.getElementById('login-password').value
+    )">Sign In</button>
     <div class="modal-toggle">Need an account? <a onclick="toggleAuthMode()">Request Access</a></div>
     <div style="text-align:center;margin-top:12px;"><a onclick="hideAuth()" style="color:var(--muted);font-size:12px;cursor:pointer;">← Back to Public Dashboard</a></div>
   </div>
@@ -200,6 +203,9 @@
         </div>
       </div>
     </div>
+    
+    <!-- Impact Map -->
+    <div id="impact-map" style="width:100%;height:300px;border-radius:12px;margin-top:20px;z-index:1;border:1px solid var(--border);"></div>
 
     <!-- CTA Footer -->
     <section class="cta-footer" style="margin-top:40px;padding:20px;background:var(--surf2);text-align:center;border-radius:12px;">

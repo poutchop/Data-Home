@@ -25,23 +25,28 @@ function setTab(id, el) {
 }
 
 // ── Auth ─────────────────────────────────────────────────────
-async function handleAuth() {
-  const email = document.getElementById('auth-email').value;
-  const password = document.getElementById('auth-pass').value;
+async function handleAuth(email, password) {
+  // If no arguments provided, try to read from the login form
+  if (!email || !password) {
+    email = document.getElementById('login-email')?.value;
+    password = document.getElementById('login-password')?.value;
+  }
+  
   if (!email || !password) {
     showToast('Please enter credentials', 'warning');
     return;
   }
   
-  const { data, error } = await sb.auth.signInWithPassword({ email, password });
-  if (error) {
-    showToast('Sign in failed: ' + error.message, 'error');
-    return;
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    
+    const userRole = ADMIN_EMAILS.includes(data.user.email) ? 'admin' : 'user';
+    onLoginSuccess(userRole);
+    showToast('Signed in as ' + (data.user.user_metadata?.full_name || data.user.email));
+  } catch (e) {
+    showToast(e.message, 'warning');
   }
-  
-  const userRole = ADMIN_EMAILS.includes(data.user.email) ? 'admin' : 'user';
-  onLoginSuccess(userRole);
-  showToast('Signed in as ' + (data.user.user_metadata?.full_name || data.user.email));
 }
 
 async function handleLogout() {
@@ -232,6 +237,26 @@ function showAuth() { document.getElementById('auth-modal').style.display = 'fle
 function hideAuth() { document.getElementById('auth-modal').style.display = 'none'; }
 function toggleTheme() { document.body.classList.toggle('light-mode'); }
 
+// ── IMPACT MAP ──────────────────────────────────────────────
+function initImpactMap() {
+  const mapEl = document.getElementById('impact-map');
+  if (!mapEl) return;
+  
+  // Initialize map centered on Berekuso
+  const map = L.map('impact-map').setView([5.7456, -0.3214], 14);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
+
+  // Berekuso farm locations from developer brief
+  L.marker([5.7456, -0.3214]).addTo(map).bindPopup('Berekuso Farm A');
+  L.marker([5.7448, -0.3221]).addTo(map).bindPopup('Berekuso Farm B');
+  L.marker([5.7444, -0.3228]).addTo(map).bindPopup('Tomato Co-op West');
+  
+  // Force resize check
+  setTimeout(() => map.invalidateSize(), 500);
+}
+
 // ── PWA & INIT ────────────────────────────────────────────────
 let deferredPrompt;
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredPrompt = e; });
@@ -258,6 +283,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Live Load
   await loadAll();
+  initImpactMap();
   
   // Refresh loop
   setInterval(loadMetrics, 30000);
