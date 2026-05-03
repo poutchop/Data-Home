@@ -1,11 +1,12 @@
 // ══ Service Worker — Offline-first for field deployment ══
-var CACHE_NAME = 'datavault-v2';
+var CACHE_NAME = 'datavault-v3';
 var ASSETS = [
   './',
   'index.html',
   'styles.css',
   'app.js',
   'scanner.js',
+  'supabase-client.js',
   'manifest.json',
   'icon.svg',
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap',
