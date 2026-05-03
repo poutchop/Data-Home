@@ -1,5 +1,5 @@
 // ══ Service Worker — Offline-first for field deployment ══
-var CACHE_NAME = 'datavault-v4';
+var CACHE_NAME = 'datavault-v5';
 var ASSETS = [
   './',
   'index.html',

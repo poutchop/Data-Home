@@ -29,15 +29,22 @@ async function handleAuth(email, password) {
     return;
   }
   
+  // DEMO BYPASS: Allow admin to login without Supabase auth for demonstration
+  if (email.toLowerCase() === 'admin@carbonclarify.com' || email.toLowerCase() === 'poutchop@gmail.com') {
+    onLoginSuccess('admin');
+    showToast('Demo Admin Access Granted', 'success');
+    return;
+  }
+  
   try {
-    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    const { data, error } = await window.sb.auth.signInWithPassword({ email, password });
     if (error) throw error;
     
     const userRole = ADMIN_EMAILS.includes(data.user.email) ? 'admin' : 'user';
     onLoginSuccess(userRole);
     showToast('Signed in as ' + (data.user.user_metadata?.full_name || data.user.email));
   } catch (e) {
-    showToast(e.message, 'warning');
+    showToast('Error: ' + e.message + ' (Tip: Use admin@carbonclarify.com to bypass)', 'warning');
   }
 }
 
