@@ -47,7 +47,7 @@ async function handleLogout() {
 }
 
 function onLoginSuccess(role) {
-  document.getElementById('auth-modal').style.display = 'none';
+  document.getElementById('auth-modal').classList.remove('active');
   document.querySelectorAll('.secure-tab').forEach(el => el.style.display = 'block');
   document.querySelectorAll('.admin-only').forEach(el => {
     el.style.display = role === 'admin' ? 'block' : 'none';
@@ -225,9 +225,50 @@ function showToast(message, type = 'success') {
   setTimeout(() => toast.remove(), 4000);
 }
 
-function showAuth() { document.getElementById('auth-modal').style.display = 'flex'; }
-function hideAuth() { document.getElementById('auth-modal').style.display = 'none'; }
+function showAuth() { document.getElementById('auth-modal').classList.add('active'); }
+function hideAuth() { document.getElementById('auth-modal').classList.remove('active'); }
 function toggleTheme() { document.body.classList.toggle('light-mode'); }
+
+function toggleAuthMode() {
+  const signin = document.getElementById('auth-signin-form');
+  const req = document.getElementById('auth-request-form');
+  if (signin.style.display !== 'none') {
+    signin.style.display = 'none';
+    req.style.display = 'block';
+  } else {
+    signin.style.display = 'block';
+    req.style.display = 'none';
+  }
+}
+
+function checkPassStrength(val) {
+  const meter = document.getElementById('strength-meter');
+  const bar = document.getElementById('strength-bar');
+  if (!val) { meter.style.display = 'none'; return; }
+  meter.style.display = 'block';
+  if (val.length < 6) { bar.className = 'strength-bar strength-weak'; }
+  else if (val.length < 10) { bar.className = 'strength-bar strength-medium'; }
+  else { bar.className = 'strength-bar strength-strong'; }
+}
+
+async function submitAccessRequest() {
+  const email = document.getElementById('req-email').value;
+  const pass = document.getElementById('req-pass').value;
+  const name = document.getElementById('req-name').value;
+  if (!email || !pass || !name) return showToast('Please fill all fields', 'warning');
+  
+  try {
+    const { error } = await window.sb.auth.signUp({ 
+      email, password: pass, 
+      options: { data: { full_name: name, role: 'pending' } }
+    });
+    if (error) throw error;
+    showToast('Request submitted! Pending admin approval.', 'success');
+    toggleAuthMode();
+  } catch (e) {
+    showToast(e.message, 'warning');
+  }
+}
 
 // ── IMPACT MAP ──────────────────────────────────────────────
 function initImpactMap() {
