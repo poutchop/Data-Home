@@ -19,10 +19,10 @@ var QUEUE_KEY = 'dv-offline-queue';
 var isOnline = navigator.onLine;
 
 function getOfflineQueue() {
-  try { return JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]'); } catch(e) { return []; }
+  try { return JSON.parse(SafeStore.getItem(QUEUE_KEY) || '[]'); } catch(e) { return []; }
 }
 function saveOfflineQueue(queue) {
-  localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+  SafeStore.setItem(QUEUE_KEY, JSON.stringify(queue));
   updateQueueBadge();
 }
 function updateQueueBadge() {

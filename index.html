@@ -12,7 +12,7 @@
 <meta property="og:type" content="website"/>
 <link rel="icon" href="data:image/svg+xml,<svg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'><rect rx='20' width='100' height='100' fill='%230f1117'/><path d='M50 20L80 70H50H20L50 20Z' fill='%2310d97e' opacity='.7'/><circle cx='50' cy='48' r='12' fill='white'/></svg>"/>
 <link rel="apple-touch-icon" href="icon.svg">
-<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Data Vault" />
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
@@ -104,8 +104,8 @@
 <div class="topbar">
   <div class="logo-mark">
     <svg viewBox="0 0 14 14" fill="none">
-      <path d="M7 1L12 10H7H2L7 1Z" fill="#10d97e" opacity=".7"/>
-      <path d="M7 1L12 10H7V1Z" fill="#10d97e"/>
+      <path d="M 7 1 L 12 10 H 7 H 2 L 7 1 Z" fill="#10d97e" opacity=".7"/>
+      <path d="M 7 1 L 12 10 H 7 V 1 Z" fill="#10d97e"/>
       <circle cx="7" cy="6" r="2" fill="#fff"/>
     </svg>
   </div>
@@ -662,7 +662,7 @@
 <div class="ai-chat" id="ai-chat">
   <div class="ai-header">
     <div class="logo-mark" style="width:24px;height:24px;border-radius:6px;">
-      <svg viewBox="0 0 14 14" fill="none"><path d="M7 1L12 10H7L2L7 1Z" fill="#10d97e"/></svg>
+      <svg viewBox="0 0 14 14" fill="none"><path d="M 7 1 L 12 10 H 7 L 2 L 7 1 Z" fill="#10d97e"/></svg>
     </div>
     <div class="ai-title">Vault Assistant</div>
     <div class="ai-close" onclick="toggleAIChat()">✕</div>
@@ -684,6 +684,7 @@
   </div>
 </div>
 
+<script src="supabase-client.js"></script>
 <script src="app.js?v=2.0.2"></script>
 <script src="scanner.js?v=2.0.2"></script>
 <script src="assistant.js?v=2.0.2"></script>

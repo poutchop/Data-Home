@@ -40,6 +40,10 @@ self.addEventListener('activate', function(e) {
 
 // Fetch — network first, fall back to cache
 self.addEventListener('fetch', function(e) {
+  // Ignore non-HTTP(S) requests (e.g. chrome-extension://)
+  var url = new URL(e.request.url);
+  if (!url.protocol.startsWith('http')) return;
+
   // Don't cache supabase calls or external analytics
   if (e.request.url.includes('supabase.co')) return;
 

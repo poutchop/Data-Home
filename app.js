@@ -8,9 +8,8 @@ const SUPABASE_URL = 'https://hbvrfuypyzkvpuobjynw.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhidnJmdXlweXprdnB1b2JqeW53Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNTM1NzYsImV4cCI6MjA5MjcyOTU3Nn0.UR_mcEFMc31YP443zeCfCOVYjV6groSoofDbZbco7fw';
 const ADMIN_EMAILS = ['admin@carbonclarify.com', 'poutchop@gmail.com'];
 
-// Initialize Client (Made global for scanner.js)
-var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-window.sb = sb;
+// Initialize Client (Moved to supabase-client.js)
+// window.sb is now available globally from supabase-client.js
 
 // ── Tab navigation ───────────────────────────────────────────
 function setTab(id, el) {
@@ -267,7 +266,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   console.log('Data Vault v3.0 initializing...');
   
   // Theme load
-  const theme = localStorage.getItem('dv-theme') || 'dark';
+  const theme = SafeStore.getItem('dv-theme') || 'dark';
   document.body.className = theme + '-mode';
 
   // Map init
